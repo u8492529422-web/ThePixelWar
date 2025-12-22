@@ -232,4 +232,37 @@ canvas {
 
 .eye-btn:hover {
   color: #0f172a; /* Devient noir au survol */
+}/* Masquer la barre de défilement pour toute la page */
+body {
+  -ms-overflow-style: none;  /* Internet Explorer et Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+body::-webkit-scrollbar {
+  display: none; /* Chrome, Safari et Opera */
+}
+
+/* Masquer la barre de défilement spécifiquement pour le conteneur de la grille */
+.canvas-container {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.canvas-container::-webkit-scrollbar {
+  display: none;
+}
+/* Supprime la barre de défilement sur toute la page (le navigateur) */
+html, body {
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* Sécurité pour masquer la barre sur tous les navigateurs sans bloquer le scroll interne */
+html {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+
+html::-webkit-scrollbar {
+  display: none;             /* Chrome, Safari, Opera */
 }
