@@ -45,16 +45,14 @@ h1 {
 main {
   padding: 40px 20px;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   background-color: #f9fafb;
 }
 
 .canvas-container {
   background: white;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  border: 1px solid #000;
-  overflow: auto;
-  max-width: 100%;
 }
 
 canvas { display: block; }

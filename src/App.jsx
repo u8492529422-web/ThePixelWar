@@ -3,9 +3,8 @@ import { supabase } from './supabaseClient'
 
 // --- CONFIGURATION ---
 const GRID_SIZE = 1000;
-const PIXEL_RENDER_SIZE = 10;
+const PIXEL_RENDER_SIZE = 1; // Changé à 1 pour faire du 1000x1000 réel
 
-// ⚠️ COLLE TON LIEN STRIPE ENTRE LES GUILLEMETS CI-DESSOUS 👇
 const STRIPE_LINK = "https://buy.stripe.com/test_9B614mdAidvn44o6trb7y00"; 
 
 function App() {
@@ -14,6 +13,7 @@ function App() {
   const [session, setSession] = useState(null);
   const [selectedPixel, setSelectedPixel] = useState(null);
   const [pixelsSold, setPixelsSold] = useState(0);
+  const [zoom, setZoom] = useState(1); // Ajout du zoom
 
   // Formulaire
   const [email, setEmail] = useState('');
@@ -21,14 +21,12 @@ function App() {
   const [newColor, setNewColor] = useState('#000000');
   const [newLink, setNewLink] = useState('https://');
 
-  // 1. Initialisation Auth
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
     return () => subscription.unsubscribe();
   }, []);
 
-  // 2. Chargement des données
   useEffect(() => {
     fetchPixels();
   }, []);
@@ -37,7 +35,7 @@ function App() {
     const { data, error } = await supabase.from('pixels').select('*');
     if (!error) {
       setPixels(data);
-      setPixelsSold(data.length); // Compteur de pixels vendus
+      setPixelsSold(data.length);
       drawGrid(data);
     }
   };
@@ -47,42 +45,39 @@ function App() {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     
-    // Fond blanc (Style Million Dollar Homepage propre)
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, GRID_SIZE * PIXEL_RENDER_SIZE, GRID_SIZE * PIXEL_RENDER_SIZE);
+    ctx.fillRect(0, 0, GRID_SIZE, GRID_SIZE);
 
     pixelsData.forEach(p => {
       ctx.fillStyle = p.color;
-      ctx.fillRect(p.x * PIXEL_RENDER_SIZE, p.y * PIXEL_RENDER_SIZE, PIXEL_RENDER_SIZE, PIXEL_RENDER_SIZE);
+      ctx.fillRect(p.x, p.y, 1, 1);
     });
   };
 
   const handleCanvasClick = (e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const x = Math.floor((e.clientX - rect.left) / PIXEL_RENDER_SIZE);
-    const y = Math.floor((e.clientY - rect.top) / PIXEL_RENDER_SIZE);
+    
+    // Calcul prenant en compte le zoom
+    const x = Math.floor((e.clientX - rect.left) / zoom);
+    const y = Math.floor((e.clientY - rect.top) / zoom);
 
     const existingPixel = pixels.find(p => p.x === x && p.y === y);
 
     if (existingPixel) {
-      // Si clic normal -> ouvrir lien
       if (existingPixel.url && !e.altKey) {
         window.open(existingPixel.url, '_blank');
       }
-      // Mode édition/info
       setSelectedPixel({ ...existingPixel, status: 'owned' });
       if (session && existingPixel.owner_id === session.user.id) {
          setNewColor(existingPixel.color);
          setNewLink(existingPixel.url || '');
       }
     } else {
-      // Pixel libre
       setSelectedPixel({ x, y, status: 'free' });
     }
   };
 
-  // Auth Functions
   const handleLogin = async () => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) alert(error.message);
@@ -94,11 +89,8 @@ function App() {
     else alert("Compte créé !");
   };
 
-  // --- LOGIQUE PAIEMENT ---
   const handlePreOrder = async () => {
     if (!session) return alert("Veuillez vous connecter ou créer un compte.");
-
-    // 1. On réserve le pixel
     const { error } = await supabase.from('pixels').insert({
         x: selectedPixel.x,
         y: selectedPixel.y,
@@ -106,13 +98,8 @@ function App() {
         color: newColor,
         url: newLink
     });
-
-    if (error) {
-        alert("Erreur ou pixel déjà pris : " + error.message);
-    } else {
-        // 2. Redirection vers Stripe
-        window.location.href = STRIPE_LINK; 
-    }
+    if (error) alert("Erreur ou pixel déjà pris : " + error.message);
+    else window.location.href = STRIPE_LINK; 
   };
 
   const handleUpdate = async () => {
@@ -120,7 +107,6 @@ function App() {
           color: newColor,
           url: newLink
       }).eq('id', selectedPixel.id);
-      
       if (!error) {
           alert("Pixel mis à jour !");
           fetchPixels();
@@ -130,7 +116,6 @@ function App() {
 
   return (
     <div>
-      {/* HEADER MODERNE */}
       <header>
         <div style={{display:'flex', alignItems:'center', gap: '15px'}}>
             <div style={{width: 30, height: 30, background: 'black'}}></div> 
@@ -159,17 +144,28 @@ function App() {
       </header>
 
       <main>
-        <div className="canvas-container">
+        {/* Contrôles de zoom */}
+        <div style={{margin: '10px 0'}}>
+            <button onClick={() => setZoom(Math.max(1, zoom - 1))}>-</button>
+            <span style={{margin: '0 15px'}}>Zoom: {zoom}x</span>
+            <button onClick={() => setZoom(zoom + 1)}>+</button>
+        </div>
+
+        <div className="canvas-container" style={{overflow: 'auto', maxWidth: '100%', border: '1px solid #000'}}>
             <canvas 
                 ref={canvasRef}
-                width={GRID_SIZE * PIXEL_RENDER_SIZE}
-                height={GRID_SIZE * PIXEL_RENDER_SIZE}
+                width={GRID_SIZE}
+                height={GRID_SIZE}
                 onClick={handleCanvasClick}
-                style={{ cursor: 'pointer' }}
+                style={{ 
+                    cursor: 'pointer', 
+                    width: GRID_SIZE * zoom, 
+                    height: GRID_SIZE * zoom,
+                    imageRendering: 'pixelated' 
+                }}
             />
         </div>
 
-        {/* MODAL D'INTERACTION */}
         {selectedPixel && (
             <>
             <div className="modal-overlay" onClick={() => setSelectedPixel(null)}></div>
@@ -181,45 +177,30 @@ function App() {
                 
                 {selectedPixel.status === 'free' ? (
                     <div>
-                        <p style={{color: '#666', marginBottom: 20}}>
-                            Ce pixel est disponible pour <strong>1.00 $</strong>.
-                        </p>
-                        
+                        <p style={{color: '#666', marginBottom: 20}}>Ce pixel est disponible pour <strong>1.00 $</strong>.</p>
                         {session ? (
                             <>
                                 <label>Choisissez une couleur</label>
                                 <input type="color" value={newColor} onChange={e => setNewColor(e.target.value)} style={{height: 50, padding: 2}} />
-                                
                                 <label>Lien de redirection (http://...)</label>
                                 <input type="text" value={newLink} onChange={e => setNewLink(e.target.value)} placeholder="Votre site web" />
-                                
-                                <button onClick={handlePreOrder} style={{width: '100%', padding: 15, fontSize: 16}}>
-                                    💳 Payer et Réserver (Stripe)
-                                </button>
-                                <p style={{fontSize: 12, color: '#999', marginTop: 10}}>
-                                    Vous serez redirigé vers Stripe pour le paiement sécurisé.
-                                </p>
+                                <button onClick={handlePreOrder} style={{width: '100%', padding: 15, fontSize: 16}}>💳 Payer et Réserver</button>
                             </>
                         ) : (
-                            <div style={{background: '#f3f4f6', padding: 15, borderRadius: 8}}>
-                                Connectez-vous en haut à droite pour acheter ce pixel.
-                            </div>
+                            <p>Connectez-vous pour acheter ce pixel.</p>
                         )}
                     </div>
                 ) : (
                     <div>
-                        <p><strong>Propriétaire :</strong> {selectedPixel.owner_id ? 'Membre vérifié' : 'Anonyme'}</p>
-                        <a href={selectedPixel.url} target="_blank" style={{display:'block', padding: 10, background: '#f0f9ff', color: '#0284c7', borderRadius: 6, textAlign:'center'}}>
-                            Visiter le lien ➜
-                        </a>
-
+                        <p><strong>Propriétaire :</strong> Membre vérifié</p>
+                        <a href={selectedPixel.url} target="_blank" style={{display:'block', padding: 10, background: '#f0f9ff', color: '#0284c7', borderRadius: 6, textAlign:'center'}}>Visiter le lien ➜</a>
                         {session && session.user.id === selectedPixel.owner_id && (
                             <div style={{marginTop: 20, borderTop: '1px solid #eee', paddingTop: 20}}>
                                 <label>Modifier la couleur</label>
                                 <input type="color" value={newColor} onChange={e => setNewColor(e.target.value)} />
                                 <label>Modifier le lien</label>
                                 <input type="text" value={newLink} onChange={e => setNewLink(e.target.value)} />
-                                <button onClick={handleUpdate}>Sauvegarder les modifications</button>
+                                <button onClick={handleUpdate}>Sauvegarder</button>
                             </div>
                         )}
                     </div>
