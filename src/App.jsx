@@ -1,11 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 
+const ADMIN_EMAIL = "romain.silande@gmail.com";
 const CANVAS_SIZE = 1000; 
 const BLOCKS_PER_ROW = 100; 
-const BLOCK_SIZE = CANVAS_SIZE / BLOCKS_PER_ROW; // 10px
+const BLOCK_SIZE = CANVAS_SIZE / BLOCKS_PER_ROW; 
 
-const LINK_SINGLE = "https://buy.stripe.com/test_9B614mdAidvn44o6trb7y00"; 
+// LIENS STRIPE
+const LINK_TIER_1 = "https://buy.stripe.com/test_9B614mdAidvn44o6trb7y00";
+const LINK_TIER_2 = "https://buy.stripe.com/test_6oU00i1RAcrj6cweZXb7y02";
+const LINK_TIER_3 = "https://buy.stripe.com/test_cNi28q3ZI62VbwQ197b7y03";
+const LINK_TIER_4 = "https://buy.stripe.com/test_bJe5kC0Nw1MF6cweZXb7y04";
 
 function App() {
   const canvasRef = useRef(null);
@@ -17,14 +22,12 @@ function App() {
   const [pixelsSold, setPixelsSold] = useState(0);
 
   const [zoom, setZoom] = useState(1);
-  const [selectedBlock, setSelectedBlock] = useState(null);
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, w: 100, h: 100 });
+  const [isCentered, setIsCentered] = useState(false);
 
-  // États Auth (Header & Modale)
+  // États Auth
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPass, setLoginPass] = useState('');
-  
-  // États Sign Up (Modale "Perfect")
   const [showSignUp, setShowSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [pseudo, setPseudo] = useState('');
@@ -32,120 +35,217 @@ function App() {
   const [signPass, setSignPass] = useState('');
   const [signError, setSignError] = useState('');
 
-  // 1. Initialisation
+  // États Achat & Sélection
+  const [isMultiSelect, setIsMultiSelect] = useState(false);
+  const [selectedBatch, setSelectedBatch] = useState([]);
+  
+  // Champs Formulaire Achat
+  const [newColor, setNewColor] = useState('#000000');
+  const [newLink, setNewLink] = useState('https://');
+  const [newDescription, setNewDescription] = useState('');
+  const [imageFile, setImageFile] = useState(null);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
     supabase.auth.onAuthStateChange((_event, session) => setSession(session));
     fetchPixels();
   }, []);
 
-  // 2. Zoom Auto
+  // 1. Zoom Auto
   useEffect(() => {
     const availableHeight = window.innerHeight - 80; 
     const availableWidth = window.innerWidth;
-    const zoomW = (availableWidth / CANVAS_SIZE) * 0.9;
-    const zoomH = (availableHeight / CANVAS_SIZE) * 0.9;
+    const zoomW = (availableWidth / CANVAS_SIZE) * 0.65;
+    const zoomH = (availableHeight / CANVAS_SIZE) * 0.65;
     setZoom(Math.min(1, Math.max(0.1, Math.min(zoomW, zoomH))));
   }, []);
 
-  // 3. Update Minimap Indicator
+  // 2. Centrage Initial
+  useEffect(() => {
+    if (viewportRef.current && !isCentered) {
+        const v = viewportRef.current;
+        v.scrollTop = (v.scrollHeight - v.clientHeight) / 2;
+        v.scrollLeft = (v.scrollWidth - v.clientWidth) / 2;
+        setIsCentered(true);
+    }
+  }, [zoom]);
+
+  // --- LOGIQUE PRIX ---
+  const getPricePerBlock = (count) => {
+    if (count >= 10) return 0.70;
+    if (count >= 5) return 0.85;
+    return 1.00;
+  };
+
+  const totalPrice = selectedBatch.length * getPricePerBlock(selectedBatch.length);
+  const unitPrice = getPricePerBlock(selectedBatch.length);
+  const discountPercent = unitPrice === 1 ? 0 : Math.round((1 - unitPrice) * 100);
+
+  // --- MINIMAP INDICATOR ---
   const updateMinimapIndicator = () => {
-    if (!viewportRef.current) return;
-    const viewW = viewportRef.current.clientWidth;
-    const viewH = viewportRef.current.clientHeight;
-    const scrollX = viewportRef.current.scrollLeft;
-    const scrollY = viewportRef.current.scrollTop;
-    const totalSize = CANVAS_SIZE * zoom;
+    if (!viewportRef.current || !canvasRef.current) return;
+    const viewport = viewportRef.current;
+    const canvas = canvasRef.current;
     
+    const relativeX = viewport.scrollLeft - canvas.offsetLeft;
+    const relativeY = viewport.scrollTop - canvas.offsetTop;
+    const totalSize = CANVAS_SIZE * zoom;
+
     setViewBox({
-      x: Math.min(100, Math.max(0, (scrollX / totalSize) * 100)),
-      y: Math.min(100, Math.max(0, (scrollY / totalSize) * 100)),
-      w: Math.min(100, (viewW / totalSize) * 100),
-      h: Math.min(100, (viewH / totalSize) * 100)
+      x: (relativeX / totalSize) * 100,
+      y: (relativeY / totalSize) * 100,
+      w: (viewport.clientWidth / totalSize) * 100,
+      h: (viewport.clientHeight / totalSize) * 100
     });
   };
 
   useEffect(() => { updateMinimapIndicator(); }, [zoom]);
+
+  const handleMinimapClick = (e) => {
+    if (!viewportRef.current || !canvasRef.current) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratioX = (e.clientX - rect.left) / rect.width;
+    const ratioY = (e.clientY - rect.top) / rect.height;
+    
+    const totalSize = CANVAS_SIZE * zoom;
+    const canvasX = canvasRef.current.offsetLeft;
+    const canvasY = canvasRef.current.offsetTop;
+
+    viewportRef.current.scrollTo({
+        left: canvasX + (totalSize * ratioX) - (viewportRef.current.clientWidth / 2),
+        top: canvasY + (totalSize * ratioY) - (viewportRef.current.clientHeight / 2),
+        behavior: 'smooth'
+    });
+  };
 
   const fetchPixels = async () => {
     const { data } = await supabase.from('pixels').select('*');
     if (data) { setPixels(data); setPixelsSold(data.length); }
   };
 
-  // 4. Dessin
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-      pixels.forEach(p => { 
-        ctx.fillStyle = p.color; ctx.fillRect(p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE); 
-      });
-      if (selectedBlock) {
-        ctx.strokeStyle = "red"; ctx.lineWidth = 2;
-        ctx.strokeRect(selectedBlock.x * BLOCK_SIZE, selectedBlock.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
-      }
-    }
-    const mini = minimapRef.current;
-    if (mini) {
-        const ctxMini = mini.getContext('2d');
-        ctxMini.fillStyle = "#FFFFFF"; ctxMini.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-        pixels.forEach(p => { 
-            ctxMini.fillStyle = p.color; ctxMini.fillRect(p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE); 
+  // --- DESSIN ---
+  const draw = (ctx, isMini = false) => {
+    ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+    
+    pixels.forEach(p => { 
+      ctx.fillStyle = p.color || '#000'; 
+      ctx.fillRect(p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE); 
+    });
+
+    if (!isMini) {
+        selectedBatch.forEach(block => {
+            ctx.fillStyle = "rgba(37, 99, 235, 0.3)"; 
+            ctx.fillRect(block.x * BLOCK_SIZE, block.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+            ctx.strokeStyle = "#ff0000"; 
+            ctx.lineWidth = 2;
+            ctx.strokeRect(block.x * BLOCK_SIZE, block.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
         });
     }
-  }, [pixels, selectedBlock]);
-
-  // Handlers
-  const handleMinimapClick = (e) => {
-    if (!viewportRef.current) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const ratioX = (e.clientX - rect.left) / rect.width;
-    const ratioY = (e.clientY - rect.top) / rect.height;
-    const totalSize = CANVAS_SIZE * zoom;
-    viewportRef.current.scrollTo({
-        left: (totalSize * ratioX) - (viewportRef.current.clientWidth / 2),
-        top: (totalSize * ratioY) - (viewportRef.current.clientHeight / 2),
-        behavior: 'smooth'
-    });
   };
 
+  useEffect(() => {
+    if (canvasRef.current) draw(canvasRef.current.getContext('2d'), false);
+    if (minimapRef.current) draw(minimapRef.current.getContext('2d'), true);
+  }, [pixels, selectedBatch]);
+
+  // --- CLIC SÉCURISÉ (CORRECTIF APPLIQUÉ) ---
   const handleCanvasClick = (e) => {
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = Math.floor(((e.clientX - rect.left) / zoom) / BLOCK_SIZE);
-    const y = Math.floor(((e.clientY - rect.top) / zoom) / BLOCK_SIZE);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    
+    // Calcul précis du ratio (Zoom réel) pour éviter les décalages
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    // Position réelle sur la grille
+    const canvasX = (e.clientX - rect.left) * scaleX;
+    const canvasY = (e.clientY - rect.top) * scaleY;
+
+    // Conversion en bloc
+    const x = Math.floor(canvasX / BLOCK_SIZE);
+    const y = Math.floor(canvasY / BLOCK_SIZE);
+
+    // Sécurité hors limite
     if (x < 0 || x >= BLOCKS_PER_ROW || y < 0 || y >= BLOCKS_PER_ROW) return;
 
+    // Vérification pixel existant
     const existing = pixels.find(p => p.x === x && p.y === y);
-    setSelectedBlock({ x, y, status: existing ? 'occupied' : 'free', data: existing || null });
+
+    if (existing) {
+        // Si occupé, on sélectionne pour voir les infos (sauf si multi-select actif)
+        if (!isMultiSelect) {
+            setSelectedBatch([{x, y, status: 'occupied', data: existing}]);
+        }
+        return;
+    }
+
+    // Gestion de la sélection (Ajout/Suppression)
+    const isAlreadySelected = selectedBatch.find(b => b.x === x && b.y === y);
+
+    if (isMultiSelect) {
+        if (isAlreadySelected) {
+            setSelectedBatch(selectedBatch.filter(b => !(b.x === x && b.y === y)));
+        } else {
+            setSelectedBatch([...selectedBatch, {x, y, status: 'free'}]);
+        }
+    } else {
+        setSelectedBatch([{x, y, status: 'free'}]);
+    }
   };
 
-  const handleBuySingle = async () => {
+  // --- ACHAT ---
+  const handleBuy = async (isAdminBypass = false) => {
     if (!session) return alert("Please log in first.");
-    const { error } = await supabase.from('pixels').insert({
-      x: selectedBlock.x, y: selectedBlock.y, owner_id: session.user.id, color: '#000000', url: ''
-    });
+    if (selectedBatch.length === 0) return;
+
+    let publicImageUrl = null;
+    if (imageFile) {
+        const fileName = `${session.user.id}_${Date.now()}`;
+        const { error } = await supabase.storage.from('pixel-images').upload(fileName, imageFile);
+        if (error) return alert("Image upload failed: " + error.message);
+        const { data } = supabase.storage.from('pixel-images').getPublicUrl(fileName);
+        publicImageUrl = data.publicUrl;
+    }
+
+    const pixelsToInsert = selectedBatch.map(p => ({
+      x: p.x, y: p.y, owner_id: session.user.id, 
+      color: newColor, url: newLink, description: newDescription, image_url: publicImageUrl
+    }));
+
+    const { error } = await supabase.from('pixels').insert(pixelsToInsert);
     if (error) alert("Error: " + error.message);
-    else window.location.href = LINK_SINGLE;
+    else {
+        if (isAdminBypass) {
+            alert("✨ Magic Purchase: Pixels added for FREE!");
+            fetchPixels(); setSelectedBatch([]); setImageFile(null); setNewDescription('');
+            return;
+        }
+        
+        const count = selectedBatch.length;
+        let finalLink = LINK_TIER_1;
+        if (count >= 10) finalLink = LINK_TIER_4; 
+        else if (count >= 5) finalLink = LINK_TIER_3; 
+        
+        window.location.href = finalLink; 
+    }
   };
 
+  // Auth
   const handleLogin = async () => {
     const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPass });
     if (error) alert(error.message);
   };
-
   const handleSignUpSubmit = async (e) => {
     e.preventDefault();
-    setSignError('');
-    if (signPass.length < 6) { setSignError("Password must be at least 6 characters"); return; }
+    if (signPass.length < 6) { setSignError("Min 6 chars"); return; }
     const { error } = await supabase.auth.signUp({ email: signEmail, password: signPass, options: { data: { pseudo } } });
-    if (error) setSignError(error.message);
-    else { alert("Account created! Check emails."); setShowSignUp(false); }
+    if (error) setSignError(error.message); else { alert("Account created!"); setShowSignUp(false); }
   };
 
   return (
     <div>
-      {/* HEADER RESTAURÉ AVEC INPUTS */}
       <header>
         <div className="nav-left">The Pixel War</div>
         <div className="nav-center">{(10000 - pixelsSold).toLocaleString().replace(/,/g, ' ')} blocks left</div>
@@ -180,36 +280,90 @@ function App() {
           <p style={{fontSize:12, marginTop:10}}>Navigation</p>
         </div>
 
-        {/* INFO PANEL */}
+        {/* INFO PANEL SÉCURISÉ */}
         <div className="info-panel">
           <h2 style={{marginTop:0, fontSize:22}}>Pixel Info</h2>
-          {selectedBlock ? (
+          
+          <div className="mode-toggle">
+            <button className={`mode-btn ${!isMultiSelect ? 'active' : ''}`} onClick={() => {setIsMultiSelect(false); setSelectedBatch([])}}>Single</button>
+            <button className={`mode-btn ${isMultiSelect ? 'active' : ''}`} onClick={() => {setIsMultiSelect(true); setSelectedBatch([])}}>Multi-Select</button>
+          </div>
+
+          {selectedBatch.length > 0 && selectedBatch[0] ? (
             <>
-              <div style={{background:'#f3f4f6', padding:'15px', borderRadius:8, textAlign:'center', marginBottom:20}}>
-                <div style={{fontSize:12, color:'#666', fontWeight:'bold'}}>Coordinates</div>
-                <div style={{fontSize:24, fontWeight:'800', color:'#111'}}>X: {selectedBlock.x} | Y: {selectedBlock.y}</div>
-              </div>
-              <div style={{flex:1}}>
-                {selectedBlock.status === 'occupied' ? (
-                  <div>
-                    <span style={{background:'#dcfce7', color:'#166534', padding:'4px 10px', borderRadius:50, fontSize:12, fontWeight:'bold'}}>Occupied</span>
-                    <p><strong>Owner:</strong> {selectedBlock.data.owner_id ? 'Member' : 'Anon'}</p>
-                    {selectedBlock.data.url && <a href={selectedBlock.data.url} target="_blank" rel="noreferrer">Visit Site</a>}
-                  </div>
-                ) : (
-                  <div>
-                    <span style={{background:'#dbeafe', color:'#1e40af', padding:'4px 10px', borderRadius:50, fontSize:12, fontWeight:'bold'}}>Free</span>
-                    <p style={{color:'#666', marginTop:15}}>Available for purchase.</p>
-                    <div style={{fontSize:18, fontWeight:'bold', marginTop:10}}>1.00$</div>
-                  </div>
-                )}
-              </div>
-              {selectedBlock.status === 'free' && (
-                <button className="btn-login" style={{width:'100%'}} onClick={handleBuySingle}>Buy Block</button>
+              {selectedBatch[0].status === 'occupied' && selectedBatch[0].data ? (
+                 /* PIXEL OCCUPÉ */
+                 <div>
+                    <div style={{background:'#dcfce7', color:'#166534', padding:'10px', borderRadius:6, marginBottom:10, fontWeight:'bold', textAlign:'center'}}>Block Occupied</div>
+                    <p style={{fontSize:14}}><strong>X:</strong> {selectedBatch[0].x} | <strong>Y:</strong> {selectedBatch[0].y}</p>
+                    <p style={{fontSize:14}}><strong>By:</strong> {selectedBatch[0].data?.owner_id || 'Unknown'}</p>
+                    {/* Description */}
+                    {selectedBatch[0].data?.description && (
+                        <p style={{fontSize:13, fontStyle:'italic', color:'#555', background:'#f1f5f9', padding:8, borderRadius:4}}>
+                            "{selectedBatch[0].data.description}"
+                        </p>
+                    )}
+                 </div>
+              ) : (
+                 /* PIXEL LIBRE */
+                 <div style={{flex:1, display:'flex', flexDirection:'column', overflowY:'auto'}}>
+                    <div style={{fontSize:13, fontWeight:600, marginBottom:5}}>SETTINGS</div>
+                    
+                    <label style={{fontSize:12}}>Color</label>
+                    <label className="btn-login btn-file-label" style={{backgroundColor: newColor, border: '1px solid #e5e7eb', color: newColor === '#ffffff' ? 'black' : 'white', marginBottom: 10}}>
+                        {newColor}
+                        <input type="color" value={newColor} onChange={e => setNewColor(e.target.value)} style={{display:'none'}} />
+                    </label>
+                    
+                    <label style={{fontSize:12}}>Upload Image (Optional)</label>
+                    <label className="btn-login btn-file-label">
+                        {imageFile ? "Image Selected ✓" : "Choose File"}
+                        <input type="file" accept="image/*" onChange={e => setImageFile(e.target.files[0])} />
+                    </label>
+
+                    <label style={{fontSize:12, marginTop:5}}>Link URL</label>
+                    <input className="nav-input" style={{width:'100%', marginBottom:10}} value={newLink} onChange={e => setNewLink(e.target.value)} />
+
+                    <label style={{fontSize:12}}>Description</label>
+                    <textarea 
+                        className="nav-input" 
+                        style={{width:'100%', height:60, marginBottom:10, fontFamily:'inherit'}} 
+                        value={newDescription} 
+                        onChange={e => setNewDescription(e.target.value)} 
+                        placeholder="Say something..."
+                    />
+
+                    <div className="price-summary">
+                        <div className="price-row"><span>Blocks</span><span>{selectedBatch.length}</span></div>
+                        <div className="price-row"><span>Unit</span><span>{unitPrice.toFixed(2)}$</span></div>
+                        {discountPercent > 0 && (
+                            <div className="price-row" style={{color:'#166534'}}><span>Discount</span><span className="discount-tag">-{discountPercent}%</span></div>
+                        )}
+                        <div className="price-total"><span>TOTAL</span><span>{totalPrice.toFixed(2)}$</span></div>
+                    </div>
+
+                    <button className="btn-login" style={{width:'100%', marginTop:15, padding:'15px'}} onClick={() => handleBuy(false)}>
+                        Purchase Now
+                    </button>
+
+                    {/* BOUTON MAGIC ADMIN */}
+                    {session?.user?.email === ADMIN_EMAIL && (
+                        <button style={{width: '100%', marginTop: 10, padding: '10px', background: 'linear-gradient(45deg, #FFD700, #FFA500)', border: 'none', borderRadius: '8px', color: 'white', fontWeight: 'bold', cursor: 'pointer'}} onClick={() => handleBuy(true)}>
+                            👑 Magic Add (Free)
+                        </button>
+                    )}
+                 </div>
               )}
             </>
           ) : (
-            <div style={{flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#999'}}>Select a block</div>
+            <div style={{flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', color:'#999', textAlign:'center'}}>
+                <p>Select blocks on the grid.</p>
+                {isMultiSelect && (
+                    <p style={{fontSize: 15, fontWeight: '900', color: '#999', marginTop: 10, textTransform: 'uppercase', letterSpacing: '0.5px'}}>
+                        Multi-select Active !
+                    </p>
+                )}
+            </div>
           )}
         </div>
 
@@ -221,14 +375,27 @@ function App() {
         </div>
 
         {/* GRILLE */}
-        <div className="grid-viewport" ref={viewportRef} onScroll={updateMinimapIndicator}>
+        <div 
+            className="grid-viewport" 
+            ref={viewportRef} 
+            onScroll={updateMinimapIndicator}
+        >
           <canvas 
-            ref={canvasRef} width={CANVAS_SIZE} height={CANVAS_SIZE} onClick={handleCanvasClick}
-            style={{ width: CANVAS_SIZE * zoom, height: CANVAS_SIZE * zoom, boxShadow: '0 0 50px rgba(0,0,0,0.1)', display: 'block', margin: 'auto' }}
+            ref={canvasRef} 
+            width={CANVAS_SIZE} 
+            height={CANVAS_SIZE} 
+            onClick={handleCanvasClick}
+            style={{ 
+                width: CANVAS_SIZE * zoom, 
+                height: CANVAS_SIZE * zoom, 
+                boxShadow: '0 0 50px rgba(0,0,0,0.1)', 
+                display: 'block', 
+                margin: 'auto' 
+            }}
           />
         </div>
 
-        {/* MODALE SIGN UP RESTAURÉE */}
+        {/* MODALE SIGN UP */}
         {showSignUp && (
           <div className="modal-overlay" onClick={() => setShowSignUp(false)}>
             <div className="signup-card" onClick={e => e.stopPropagation()}>
@@ -236,20 +403,11 @@ function App() {
               <form onSubmit={handleSignUpSubmit}>
                 <input placeholder="Pseudo" required onChange={e => setPseudo(e.target.value)} />
                 <input type="email" placeholder="Email" required onChange={e => setSignEmail(e.target.value)} />
-                
                 <div className="password-wrapper">
                   <input type={showPassword ? "text" : "password"} placeholder="Password" required onChange={e => setSignPass(e.target.value)} />
-                  <button type="button" className="eye-btn" onClick={() => setShowPassword(!showPassword)}>
-                    {showPassword ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-                    ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                    )}
-                  </button>
+                  <button type="button" className="eye-btn" onClick={() => setShowPassword(!showPassword)}>O</button>
                 </div>
-
-                {signError && <div className="error-text" style={{color:'#dc2626', fontSize:14, marginBottom:10, fontWeight:600}}>{signError}</div>}
-                
+                {signError && <div className="error-text">{signError}</div>}
                 <button type="submit" className="btn-signup-confirm">Sign Up</button>
                 <button type="button" className="btn-cancel" onClick={() => setShowSignUp(false)}>Cancel</button>
               </form>

@@ -131,3 +131,94 @@ canvas { display: block; image-rendering: pixelated; background: white; }
   background: none; border: none; cursor: pointer; padding: 0;
   display: flex; align-items: center; justify-content: center; color: #64748b;
 }
+/* ... Garde tout le reste du fichier identique ... */
+
+/* UI PANNEAU DROITE */
+.mode-toggle {
+  display: flex;
+  background: #f3f4f6;
+  padding: 4px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.mode-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.mode-btn.active {
+  background: white;
+  color: #000;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.price-summary {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+.price-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.price-total {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+  font-weight: 800;
+  font-size: 18px;
+  color: #0f172a;
+}
+
+.discount-tag {
+  background: #dcfce7;
+  color: #166534;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+/* Input File Custom */
+.file-input {
+  width: 100%;
+  padding: 10px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-top: 5px;
+}
+/* ... Tout le reste est inchangé ... */
+
+/* Style pour transformer l'input file en joli bouton noir */
+.btn-file-label {
+  display: block;
+  text-align: center;
+  cursor: pointer;
+  margin-top: 5px;
+  margin-bottom: 15px;
+  /* On hérite des styles de .btn-login via la classe dans le JSX */
+}
+
+/* On cache le vrai input file moche */
+.btn-file-label input[type="file"] {
+  display: none;
+}
