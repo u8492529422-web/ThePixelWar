@@ -1,206 +1,133 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap');
 
-body {
-  margin: 0;
-  font-family: 'Inter', sans-serif;
-  background-color: #f9fafb;
-}
+/* --- RESET & LAYOUT GLOBAL --- */
+* { box-sizing: border-box; }
 
-/* HEADER - STRUCTURE EN 3 COLONNES POUR ÉVITER LE CHEVAUCHEMENT */
+body, html {
+  margin: 0; padding: 0;
+  overflow: hidden; /* Pas de scrollbar navigateur */
+  height: 100%; width: 100%;
+  background-color: #e5e5e5;
+  font-family: 'Inter', sans-serif;
+  -ms-overflow-style: none; scrollbar-width: none;
+}
+*::-webkit-scrollbar { display: none; }
+
+/* --- HEADER (Style "Perfect" de l'image) --- */
 header {
   height: 80px;
   display: grid;
-  grid-template-columns: 1fr auto 1fr; /* Gauche, Milieu, Droite */
+  grid-template-columns: 1fr auto 1fr; /* 3 colonnes pour centrage parfait */
   align-items: center;
   padding: 0 40px;
-  border-bottom: 1px solid #e5e7eb;
-  position: sticky;
-  top: 0;
   background: white;
-  z-index: 100;
+  border-bottom: 1px solid #e5e7eb;
+  position: sticky; top: 0; z-index: 100;
 }
 
-.nav-left {
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -1px;
-}
-
-.nav-center {
-  font-size: 22px;
-  font-weight: 700;
-  color: #000;
-  white-space: nowrap;
-  padding: 0 20px;
-}
-
-.nav-right {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 10px;
-}
+.nav-left { font-size: 28px; font-weight: 800; letter-spacing: -1px; }
+.nav-center { font-size: 22px; font-weight: 700; color: #000; white-space: nowrap; }
+.nav-right { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
 
 .nav-input {
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  padding: 10px 14px;
-  font-size: 14px;
-  width: 150px;
-  outline: none;
+  border: 1px solid #d1d5db; border-radius: 8px;
+  padding: 10px 14px; font-size: 14px; width: 150px; outline: none;
 }
-
 .btn-login {
-  background-color: #111827;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 14px;
-  cursor: pointer;
+  background-color: #111827; color: white; border: none;
+  padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;
 }
-
 .btn-signup-nav {
-  background-color: white;
-  color: #4b5563;
-  border: 1px solid #d1d5db;
-  padding: 10px 18px;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 14px;
-  cursor: pointer;
+  background-color: white; color: #4b5563; border: 1px solid #d1d5db;
+  padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;
 }
 
-/* ... Garde tout le CSS du Header et de la Modale Login intact ... */
-
-/* LE LAYOUT DASHBOARD (NOUVEAU) */
-
-* {
-  box-sizing: border-box; /* Indispensable pour que les tailles soient respectées */
-}
-
-body, html {
-  margin: 0;
-  padding: 0;
-  overflow: hidden; /* Coupe tout ce qui dépasse de l'écran */
-  height: 100%;
-  width: 100%;
-  background-color: #e5e5e5;
-}
-
-/* On cache les scrollbars partout (Chrome, Safari, Edge) */
-*::-webkit-scrollbar {
-  display: none;
-}
-
-/* Pour Firefox */
-* {
-  scrollbar-width: none;
-}
-
-/* AJUSTEMENT DU MAIN */
+/* --- STRUCTURE DASHBOARD --- */
 main {
   position: relative;
-  height: calc(100vh - 80px); /* 100% de la hauteur moins le header */
+  height: calc(100vh - 80px);
   width: 100vw;
-  overflow: hidden; 
+  overflow: hidden;
 }
 
-/* AJUSTEMENT DE LA ZONE GRILLE */
+/* GRILLE (Fond) */
 .grid-viewport {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  overflow: auto; /* Permet de bouger DANS la grille si on zoom */
-  z-index: 1;
-  
-  /* C'est ça qui va centrer ta grille parfaitement au milieu */
-  display: flex;
-  align-items: center; 
-  justify-content: center;
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  overflow: auto; z-index: 1;
+  display: flex; /* Pour centrer le canvas initialement */
 }
+canvas { display: block; image-rendering: pixelated; background: white; }
 
-/* 1. LA GRILLE (AU FOND) */
-.grid-viewport {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  overflow: auto; /* C'est la seule chose qui scrolle */
-  z-index: 1; /* Tout au fond */
-  display: flex;
-  justify-content: center; /* Centre la grille si on dézoome beaucoup */
-  align-items: center;
-}
-
-canvas {
-  background: white;
-  box-shadow: 0 0 50px rgba(0,0,0,0.1);
-  image-rendering: pixelated;
-}
-
-/* 2. MINI-CARTE (GAUCHE) */
+/* PANNEAUX FLOTTANTS (Gauche/Droite/Bas) */
 .minimap-panel {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  width: 200px;
-  background: white;
-  padding: 15px;
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-  z-index: 10; /* Devant la grille */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  position: absolute; top: 20px; left: 20px;
+  width: 200px; background: white; padding: 15px; border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15); z-index: 10;
+  display: flex; flex-direction: column; align-items: center;
 }
-
 .minimap-preview {
-  width: 180px;
-  height: 180px;
-  background: #eee;
-  border: 1px solid #ddd;
-  margin-bottom: 10px;
-  position: relative;
+  width: 180px; height: 180px; background: #eee; border: 1px solid #ddd;
+  margin-bottom: 10px; position: relative; cursor: crosshair; overflow: hidden;
 }
 
-/* 3. INFO PANEL (DROITE) */
 .info-panel {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  bottom: 20px; /* Prend toute la hauteur disponible */
-  width: 300px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-  z-index: 10; /* Devant la grille */
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
+  position: absolute; top: 20px; right: 20px; bottom: 20px;
+  width: 300px; background: white; border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15); z-index: 10;
+  padding: 20px; display: flex; flex-direction: column;
 }
 
-/* 4. ZOOM (BAS) */
 .zoom-controls {
-  position: absolute;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: white;
-  padding: 8px 16px;
-  border-radius: 50px;
-  display: flex;
-  gap: 15px;
-  align-items: center;
-  box-shadow: 0 5px 20px rgba(0,0,0,0.2);
-  z-index: 20; /* Tout devant */
-  border: 1px solid #ddd;
+  position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+  background: white; padding: 8px 16px; border-radius: 50px;
+  display: flex; gap: 15px; align-items: center;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.2); z-index: 20; border: 1px solid #ddd;
+}
+.zoom-btn {
+  background: #111; color: white; border: none; width: 30px; height: 30px;
+  border-radius: 50%; cursor: pointer; font-weight: bold;
 }
 
-.zoom-btn {
-  background: #111;
-  color: white;
-  border: none;
-  width: 30px; height: 30px;
-  border-radius: 50%;
-  cursor: pointer;
-  font-weight: bold;
+/* --- MODALE SIGN UP "PERFECT" --- */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2000; /* Au-dessus de tout */
+}
+
+.signup-card {
+  background: white; width: 100%; max-width: 400px; padding: 40px;
+  border-radius: 28px; /* Coins très arrondis */
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  display: flex; flex-direction: column; box-sizing: border-box;
+}
+
+.signup-card h2 { margin: 0 0 24px 0; font-size: 32px; font-weight: 800; color: #000; }
+
+.signup-card input {
+  width: 100%; height: 50px; border: 1px solid #d1d5db; border-radius: 10px;
+  padding: 0 15px; margin-bottom: 12px; font-size: 16px; outline: none;
+}
+.signup-card input::placeholder { color: #9ca3af; }
+
+.btn-signup-confirm {
+  width: 100%; height: 54px; background-color: #0f172a; color: white;
+  border: none; border-radius: 12px; font-size: 18px; font-weight: 700;
+  cursor: pointer; margin-top: 8px; transition: background 0.2s;
+}
+.btn-signup-confirm:hover { background-color: #1e293b; }
+
+.btn-cancel {
+  background: none; border: none; color: #475569; font-size: 16px;
+  font-weight: 700; margin-top: 20px; cursor: pointer; text-align: center; width: 100%;
+}
+
+/* Password Eye */
+.password-wrapper { position: relative; width: 100%; }
+.password-wrapper input { padding-right: 45px; }
+.eye-btn {
+  position: absolute; right: 12px; top: 40%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: center; color: #64748b;
 }
