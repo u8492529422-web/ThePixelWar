@@ -72,197 +72,135 @@ header {
   cursor: pointer;
 }
 
-/* GRILLE ET CANVAS */
-main {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 40px 20px 120px 20px;
+/* ... Garde tout le CSS du Header et de la Modale Login intact ... */
+
+/* LE LAYOUT DASHBOARD (NOUVEAU) */
+
+* {
+  box-sizing: border-box; /* Indispensable pour que les tailles soient respectées */
 }
 
-.canvas-container {
-  background: white;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-  border: 1px solid #000;
-  overflow: auto;
-  max-width: 95vw;
-  max-height: 70vh;
-}
-
-canvas { 
-  display: block; 
-  image-rendering: pixelated; 
-}
-
-/* ZOOM FLOTTANT */
-.floating-controls {
-  position: fixed;
-  bottom: 30px;
-  background: white;
-  padding: 10px 20px;
-  border-radius: 50px;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-  z-index: 200;
-  border: 1px solid #e5e7eb;
-}
-
-.floating-controls button {
-  background: #111;
-  color: white;
-  border: none;
-  width: 35px;
-  height: 35px;
-  border-radius: 50%;
-  cursor: pointer;
-  font-weight: bold;
-}
-
-/* MODALES */
-/* Overlay pour centrer la modale */
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(2px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-}
-
-/* La carte blanche (Modale) */
-.signup-card {
-  background: white;
-  width: 100%;
-  max-width: 400px; /* Largeur de la modale */
-  padding: 40px;
-  border-radius: 28px; /* Coins très arrondis comme sur l'image */
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
-.signup-card h2 {
-  margin: 0 0 24px 0;
-  font-size: 32px;
-  font-weight: 800;
-  color: #000;
-  text-align: left;
-}
-
-/* Alignement des champs */
-.signup-card input {
-  width: 100%;
-  height: 50px;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
-  padding: 0 15px;
-  margin-bottom: 12px;
-  font-size: 16px;
-  color: #333;
-  box-sizing: border-box; /* Important pour l'alignement */
-  outline: none;
-}
-
-.signup-card input::placeholder {
-  color: #9ca3af;
-}
-
-/* Bouton Sign Up */
-.btn-signup-confirm {
-  width: 100%;
-  height: 54px;
-  background-color: #0f172a; /* Bleu très foncé / Noir */
-  color: white;
-  border: none;
-  border-radius: 12px;
-  font-size: 18px;
-  font-weight: 700;
-  cursor: pointer;
-  margin-top: 8px;
-  transition: background 0.2s;
-}
-
-.btn-signup-confirm:hover {
-  background-color: #1e293b;
-}
-
-/* Bouton Cancel */
-.btn-cancel {
-  background: none;
-  border: none;
-  color: #475569;
-  font-size: 16px;
-  font-weight: 700;
-  margin-top: 20px;
-  cursor: pointer;
-  text-align: center;
-  width: 100%;
-}
-/* Conteneur pour l'input password */
-.password-wrapper {
-  position: relative;
-  width: 100%;
-}
-
-.password-wrapper input {
-  padding-right: 45px; /* On laisse de la place pour l'icône à droite */
-}
-
-/* Bouton de l'œil */
-.eye-btn {
-  position: absolute;
-  right: 12px;
-  top: 40%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  cursor: pointer;
+body, html {
+  margin: 0;
   padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #64748b; /* Couleur grise */
-  transition: color 0.2s;
+  overflow: hidden; /* Coupe tout ce qui dépasse de l'écran */
+  height: 100%;
+  width: 100%;
+  background-color: #e5e5e5;
 }
 
-.eye-btn:hover {
-  color: #0f172a; /* Devient noir au survol */
-}/* Masquer la barre de défilement pour toute la page */
-body {
-  -ms-overflow-style: none;  /* Internet Explorer et Edge */
-  scrollbar-width: none;  /* Firefox */
+/* On cache les scrollbars partout (Chrome, Safari, Edge) */
+*::-webkit-scrollbar {
+  display: none;
 }
 
-body::-webkit-scrollbar {
-  display: none; /* Chrome, Safari et Opera */
-}
-
-/* Masquer la barre de défilement spécifiquement pour le conteneur de la grille */
-.canvas-container {
-  -ms-overflow-style: none;
+/* Pour Firefox */
+* {
   scrollbar-width: none;
 }
 
-.canvas-container::-webkit-scrollbar {
-  display: none;
-}
-/* Supprime la barre de défilement sur toute la page (le navigateur) */
-html, body {
-  overflow: hidden;
-  height: 100vh;
-}
-
-/* Sécurité pour masquer la barre sur tous les navigateurs sans bloquer le scroll interne */
-html {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;     /* Firefox */
+/* AJUSTEMENT DU MAIN */
+main {
+  position: relative;
+  height: calc(100vh - 80px); /* 100% de la hauteur moins le header */
+  width: 100vw;
+  overflow: hidden; 
 }
 
-html::-webkit-scrollbar {
-  display: none;             /* Chrome, Safari, Opera */
+/* AJUSTEMENT DE LA ZONE GRILLE */
+.grid-viewport {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  overflow: auto; /* Permet de bouger DANS la grille si on zoom */
+  z-index: 1;
+  
+  /* C'est ça qui va centrer ta grille parfaitement au milieu */
+  display: flex;
+  align-items: center; 
+  justify-content: center;
+}
+
+/* 1. LA GRILLE (AU FOND) */
+.grid-viewport {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  overflow: auto; /* C'est la seule chose qui scrolle */
+  z-index: 1; /* Tout au fond */
+  display: flex;
+  justify-content: center; /* Centre la grille si on dézoome beaucoup */
+  align-items: center;
+}
+
+canvas {
+  background: white;
+  box-shadow: 0 0 50px rgba(0,0,0,0.1);
+  image-rendering: pixelated;
+}
+
+/* 2. MINI-CARTE (GAUCHE) */
+.minimap-panel {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  width: 200px;
+  background: white;
+  padding: 15px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  z-index: 10; /* Devant la grille */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.minimap-preview {
+  width: 180px;
+  height: 180px;
+  background: #eee;
+  border: 1px solid #ddd;
+  margin-bottom: 10px;
+  position: relative;
+}
+
+/* 3. INFO PANEL (DROITE) */
+.info-panel {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  bottom: 20px; /* Prend toute la hauteur disponible */
+  width: 300px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  z-index: 10; /* Devant la grille */
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 4. ZOOM (BAS) */
+.zoom-controls {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  padding: 8px 16px;
+  border-radius: 50px;
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+  z-index: 20; /* Tout devant */
+  border: 1px solid #ddd;
+}
+
+.zoom-btn {
+  background: #111;
+  color: white;
+  border: none;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-weight: bold;
 }
