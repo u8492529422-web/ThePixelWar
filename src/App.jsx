@@ -142,14 +142,33 @@ function App() {
     if (data) { setPixels(data); setPixelsSold(data.length); }
   };
 
-  // --- DESSIN (Compatible Images) ---
+  // --- DESSIN (AVEC DÉCOUPAGE D'IMAGE) ---
   const draw = (ctx, isMini = false) => {
     ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
     
     pixels.forEach(p => { 
       const img = p.image_url ? imageCache.current[p.image_url] : null;
+
       if (img) {
-        ctx.drawImage(img, p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+        // Logique de découpage (Slicing)
+        // Si ces valeurs n'existent pas (vieux pixels), on met des valeurs par défaut
+        const totalW = p.img_w || 1;
+        const totalH = p.img_h || 1;
+        const offsetX = p.img_ox || 0;
+        const offsetY = p.img_oy || 0;
+
+        // Calcul de la portion de l'image source à prendre
+        const sourceW = img.width / totalW;
+        const sourceH = img.height / totalH;
+        const sourceX = offsetX * sourceW;
+        const sourceY = offsetY * sourceH;
+
+        // drawImage(img, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
+        ctx.drawImage(
+            img, 
+            sourceX, sourceY, sourceW, sourceH, // Quoi prendre dans l'image source
+            p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE // Où le mettre sur la grille
+        );
       } else {
         ctx.fillStyle = p.color || '#000'; 
         ctx.fillRect(p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE); 
@@ -200,12 +219,14 @@ function App() {
     }
   };
 
-  // --- ACHAT ---
+  // --- ACHAT AVEC CALCUL DE L'IMAGE ÉTENDUE ---
   const handleBuy = async (isAdminBypass = false) => {
     if (!session) return alert("Please log in first.");
     if (selectedBatch.length === 0) return;
 
     let publicImageUrl = null;
+    
+    // 1. Upload Image
     if (imageFile) {
         const fileName = `${session.user.id}_${Date.now()}`;
         const { error } = await supabase.storage.from('pixel-images').upload(fileName, imageFile);
@@ -214,12 +235,37 @@ function App() {
         publicImageUrl = data.publicUrl;
     }
 
+    // 2. CALCUL DU PUZZLE (Bounding Box)
+    // On cherche les limites min et max de la sélection pour connaître la taille du rectangle
+    const xs = selectedBatch.map(p => p.x);
+    const ys = selectedBatch.map(p => p.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const maxX = Math.max(...xs);
+    const maxY = Math.max(...ys);
+
+    // Largeur et Hauteur totale du groupe en nombre de blocs
+    const groupWidth = maxX - minX + 1;
+    const groupHeight = maxY - minY + 1;
+
+    // 3. Préparation des données
     const pixelsToInsert = selectedBatch.map(p => ({
-      x: p.x, y: p.y, owner_id: session.user.id, 
-      color: newColor, url: newLink, description: newDescription, image_url: publicImageUrl
+      x: p.x, 
+      y: p.y, 
+      owner_id: session.user.id, 
+      color: newColor, 
+      url: newLink,
+      description: newDescription,
+      image_url: publicImageUrl,
+      // On sauvegarde la position de ce pixel dans le puzzle
+      img_w: groupWidth,
+      img_h: groupHeight,
+      img_ox: p.x - minX, // Offset X (0, 1, 2...)
+      img_oy: p.y - minY  // Offset Y
     }));
 
     const { error } = await supabase.from('pixels').insert(pixelsToInsert);
+    
     if (error) alert("Error: " + error.message);
     else {
         if (isAdminBypass) {
@@ -308,7 +354,8 @@ function App() {
                     )}
                  </div>
               ) : (
-                 <div style={{flex:1, display:'flex', flexDirection:'column', overflowY:'auto'}}>
+                 <div style={{flex:1, display:'flex', flexDirection:'column', 
+                 overflowY:'auto'}}>
                     <div style={{fontSize:13, fontWeight:600, marginBottom:5}}>SETTINGS</div>
                     
                     <label style={{fontSize:12}}>Color</label>
