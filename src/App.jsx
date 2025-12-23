@@ -17,11 +17,16 @@ function App() {
   const minimapRef = useRef(null);
   const viewportRef = useRef(null);
   
+  // CACHE IMAGES (C'était sûrement ça qui manquait)
+  const imageCache = useRef({});
+  const [imagesLoaded, setImagesLoaded] = useState(0);
+
   const [pixels, setPixels] = useState([]);
   const [session, setSession] = useState(null);
   const [pixelsSold, setPixelsSold] = useState(0);
 
   const [zoom, setZoom] = useState(1);
+  const [selectedBlock, setSelectedBlock] = useState(null);
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, w: 100, h: 100 });
   const [isCentered, setIsCentered] = useState(false);
 
@@ -118,18 +123,37 @@ function App() {
     });
   };
 
+  // --- CHARGEMENT IMAGES (CACHE) ---
+  useEffect(() => {
+    pixels.forEach(p => {
+      if (p.image_url && !imageCache.current[p.image_url]) {
+        const img = new Image();
+        img.src = p.image_url;
+        img.onload = () => {
+            imageCache.current[p.image_url] = img;
+            setImagesLoaded(prev => prev + 1);
+        };
+      }
+    });
+  }, [pixels]);
+
   const fetchPixels = async () => {
     const { data } = await supabase.from('pixels').select('*');
     if (data) { setPixels(data); setPixelsSold(data.length); }
   };
 
-  // --- DESSIN ---
+  // --- DESSIN (Compatible Images) ---
   const draw = (ctx, isMini = false) => {
     ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
     
     pixels.forEach(p => { 
-      ctx.fillStyle = p.color || '#000'; 
-      ctx.fillRect(p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE); 
+      const img = p.image_url ? imageCache.current[p.image_url] : null;
+      if (img) {
+        ctx.drawImage(img, p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+      } else {
+        ctx.fillStyle = p.color || '#000'; 
+        ctx.fillRect(p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE); 
+      }
     });
 
     if (!isMini) {
@@ -146,50 +170,31 @@ function App() {
   useEffect(() => {
     if (canvasRef.current) draw(canvasRef.current.getContext('2d'), false);
     if (minimapRef.current) draw(minimapRef.current.getContext('2d'), true);
-  }, [pixels, selectedBatch]);
+  }, [pixels, selectedBatch, imagesLoaded]);
 
-  // --- CLIC SÉCURISÉ (CORRECTIF APPLIQUÉ) ---
   const handleCanvasClick = (e) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const rect = canvas.getBoundingClientRect();
-    
-    // Calcul précis du ratio (Zoom réel) pour éviter les décalages
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-
-    // Position réelle sur la grille
     const canvasX = (e.clientX - rect.left) * scaleX;
     const canvasY = (e.clientY - rect.top) * scaleY;
-
-    // Conversion en bloc
     const x = Math.floor(canvasX / BLOCK_SIZE);
     const y = Math.floor(canvasY / BLOCK_SIZE);
 
-    // Sécurité hors limite
     if (x < 0 || x >= BLOCKS_PER_ROW || y < 0 || y >= BLOCKS_PER_ROW) return;
 
-    // Vérification pixel existant
     const existing = pixels.find(p => p.x === x && p.y === y);
-
     if (existing) {
-        // Si occupé, on sélectionne pour voir les infos (sauf si multi-select actif)
-        if (!isMultiSelect) {
-            setSelectedBatch([{x, y, status: 'occupied', data: existing}]);
-        }
+        if (!isMultiSelect) setSelectedBatch([{x, y, status: 'occupied', data: existing}]);
         return;
     }
 
-    // Gestion de la sélection (Ajout/Suppression)
     const isAlreadySelected = selectedBatch.find(b => b.x === x && b.y === y);
-
     if (isMultiSelect) {
-        if (isAlreadySelected) {
-            setSelectedBatch(selectedBatch.filter(b => !(b.x === x && b.y === y)));
-        } else {
-            setSelectedBatch([...selectedBatch, {x, y, status: 'free'}]);
-        }
+        if (isAlreadySelected) setSelectedBatch(selectedBatch.filter(b => !(b.x === x && b.y === y)));
+        else setSelectedBatch([...selectedBatch, {x, y, status: 'free'}]);
     } else {
         setSelectedBatch([{x, y, status: 'free'}]);
     }
@@ -280,7 +285,7 @@ function App() {
           <p style={{fontSize:12, marginTop:10}}>Navigation</p>
         </div>
 
-        {/* INFO PANEL SÉCURISÉ */}
+        {/* INFO PANEL */}
         <div className="info-panel">
           <h2 style={{marginTop:0, fontSize:22}}>Pixel Info</h2>
           
@@ -292,12 +297,10 @@ function App() {
           {selectedBatch.length > 0 && selectedBatch[0] ? (
             <>
               {selectedBatch[0].status === 'occupied' && selectedBatch[0].data ? (
-                 /* PIXEL OCCUPÉ */
                  <div>
                     <div style={{background:'#dcfce7', color:'#166534', padding:'10px', borderRadius:6, marginBottom:10, fontWeight:'bold', textAlign:'center'}}>Block Occupied</div>
                     <p style={{fontSize:14}}><strong>X:</strong> {selectedBatch[0].x} | <strong>Y:</strong> {selectedBatch[0].y}</p>
                     <p style={{fontSize:14}}><strong>By:</strong> {selectedBatch[0].data?.owner_id || 'Unknown'}</p>
-                    {/* Description */}
                     {selectedBatch[0].data?.description && (
                         <p style={{fontSize:13, fontStyle:'italic', color:'#555', background:'#f1f5f9', padding:8, borderRadius:4}}>
                             "{selectedBatch[0].data.description}"
@@ -305,7 +308,6 @@ function App() {
                     )}
                  </div>
               ) : (
-                 /* PIXEL LIBRE */
                  <div style={{flex:1, display:'flex', flexDirection:'column', overflowY:'auto'}}>
                     <div style={{fontSize:13, fontWeight:600, marginBottom:5}}>SETTINGS</div>
                     
@@ -346,7 +348,6 @@ function App() {
                         Purchase Now
                     </button>
 
-                    {/* BOUTON MAGIC ADMIN */}
                     {session?.user?.email === ADMIN_EMAIL && (
                         <button style={{width: '100%', marginTop: 10, padding: '10px', background: 'linear-gradient(45deg, #FFD700, #FFA500)', border: 'none', borderRadius: '8px', color: 'white', fontWeight: 'bold', cursor: 'pointer'}} onClick={() => handleBuy(true)}>
                             👑 Magic Add (Free)
