@@ -254,7 +254,6 @@ function App() {
   };
 
   // --- ACHAT AVEC CALCUL DE L'IMAGE ÉTENDUE ---
-  // --- FONCTION D'ACHAT MISE À JOUR (Dynamique) ---
   const handleBuy = async (isAdminBypass = false) => {
     // 1. Vérifications de base
     if (!session) return alert("Please log in first.");
@@ -288,6 +287,7 @@ function App() {
       url: newLink,
       description: newDescription,
       image_url: publicImageUrl,
+      pseudo: session.user.user_metadata?.pseudo || 'Anonymous', 
       img_w: groupWidth,
       img_h: groupHeight,
       img_ox: p.x - minX,
@@ -405,17 +405,59 @@ function App() {
           {selectedBatch.length > 0 && selectedBatch[0] ? (
             <>
               {selectedBatch[0].status === 'occupied' && selectedBatch[0].data ? (
-                 <div>
-                    <div style={{background:'#dcfce7', color:'#166534', padding:'10px', borderRadius:6, marginBottom:10, fontWeight:'bold', textAlign:'center'}}>Block Occupied</div>
-                    <p style={{fontSize:14}}><strong>X:</strong> {selectedBatch[0].x} | <strong>Y:</strong> {selectedBatch[0].y}</p>
-                    <p style={{fontSize:14}}><strong>By:</strong> {selectedBatch[0].data?.owner_id || 'Unknown'}</p>
-                    {selectedBatch[0].data?.description && (
-                        <p style={{fontSize:13, fontStyle:'italic', color:'#555', background:'#f1f5f9', padding:8, borderRadius:4}}>
+                 <div style={{display:'flex', flexDirection:'column', gap:12}}>
+                    
+                    {/* 1. IMAGE (Si le pixel en a une) */}
+                    {selectedBatch[0].data.image_url && (
+                        <div style={{width:'100%', height:150, background:'#f3f4f6', borderRadius:8, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', border:'1px solid #e5e7eb'}}>
+                            <img 
+                                src={selectedBatch[0].data.image_url} 
+                                style={{maxWidth:'100%', maxHeight:'100%', objectFit:'contain'}} 
+                                alt="Pixel content" 
+                            />
+                        </div>
+                    )}
+
+                    {/* 2. HEADER (Pseudo + Status) */}
+                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                        <div style={{fontWeight:800, fontSize:18}}>
+                            {selectedBatch[0].data.pseudo || 'Anonymous'}
+                        </div>
+                        <span style={{background:'#dcfce7', color:'#166534', fontSize:10, fontWeight:'bold', padding:'4px 8px', borderRadius:20, textTransform:'uppercase'}}>
+                            Occupied
+                        </span>
+                    </div>
+
+                    {/* 3. COORDONNÉES */}
+                    <div style={{fontSize:12, color:'#6b7280', fontFamily:'monospace'}}>
+                        Location: X:{selectedBatch[0].x} | Y:{selectedBatch[0].y}
+                    </div>
+
+                    {/* 4. DESCRIPTION (Bulle grise) */}
+                    {selectedBatch[0].data.description && (
+                        <div style={{background:'#f9fafb', border:'1px solid #e5e7eb', padding:12, borderRadius:8, fontSize:13, color:'#374151', fontStyle:'italic', lineHeight:1.4}}>
                             "{selectedBatch[0].data.description}"
-                        </p>
+                        </div>
+                    )}
+
+                    {/* 5. BOUTON LIEN (Visiter le site) */}
+                    {selectedBatch[0].data.url && (
+                        <a 
+                            href={selectedBatch[0].data.url.startsWith('http') ? selectedBatch[0].data.url : `https://${selectedBatch[0].data.url}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="btn-login"
+                            style={{
+                                display:'flex', alignItems:'center', justifyContent:'center', 
+                                textDecoration:'none', marginTop:5, background:'black'
+                            }}
+                        >
+                            Visit Website ↗
+                        </a>
                     )}
                  </div>
               ) : (
+                 // ... (Le bloc "else" reste le même, celui avec le formulaire d'achat)
                  <div style={{flex:1, display:'flex', flexDirection:'column', 
                  overflowY:'auto'}}>
                     <div style={{fontSize:13, fontWeight:600, marginBottom:5}}>SETTINGS</div>
