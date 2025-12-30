@@ -162,7 +162,7 @@ function App() {
     ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
     
     pixels.forEach(p => { 
-      
+
       if (p.status === 'pending') {
           // Si c'est la minimap, on les affiche en rouge pour les repérer vite
           if (isMini) {
@@ -254,13 +254,15 @@ function App() {
   };
 
   // --- ACHAT AVEC CALCUL DE L'IMAGE ÉTENDUE ---
+  // --- FONCTION D'ACHAT MISE À JOUR (Dynamique) ---
   const handleBuy = async (isAdminBypass = false) => {
+    // 1. Vérifications de base
     if (!session) return alert("Please log in first.");
     if (selectedBatch.length === 0) return;
 
     let publicImageUrl = null;
     
-    // 1. Upload Image
+    // 2. Upload de l'image (si présente)
     if (imageFile) {
         const fileName = `${session.user.id}_${Date.now()}`;
         const { error } = await supabase.storage.from('pixel-images').upload(fileName, imageFile);
@@ -269,20 +271,15 @@ function App() {
         publicImageUrl = data.publicUrl;
     }
 
-    // 2. CALCUL DU PUZZLE (Bounding Box)
-    // On cherche les limites min et max de la sélection pour connaître la taille du rectangle
+    // 3. Calcul du "Puzzle" (Image découpée)
     const xs = selectedBatch.map(p => p.x);
     const ys = selectedBatch.map(p => p.y);
     const minX = Math.min(...xs);
     const minY = Math.min(...ys);
-    const maxX = Math.max(...xs);
-    const maxY = Math.max(...ys);
+    const groupWidth = Math.max(...xs) - minX + 1;
+    const groupHeight = Math.max(...ys) - minY + 1;
 
-    // Largeur et Hauteur totale du groupe en nombre de blocs
-    const groupWidth = maxX - minX + 1;
-    const groupHeight = maxY - minY + 1;
-
-    // 3. Préparation des données
+    // 4. Préparation des données SQL
     const pixelsToInsert = selectedBatch.map(p => ({
       x: p.x, 
       y: p.y, 
@@ -291,30 +288,60 @@ function App() {
       url: newLink,
       description: newDescription,
       image_url: publicImageUrl,
-      // Infos pour le découpage d'image
       img_w: groupWidth,
       img_h: groupHeight,
       img_ox: p.x - minX,
       img_oy: p.y - minY,
+      // Admin = payé direct / User = en attente de Stripe
       status: isAdminBypass ? 'paid' : 'pending' 
     }));
 
+    // 5. Insertion dans la base de données
     const { error } = await supabase.from('pixels').insert(pixelsToInsert);
     
-    if (error) alert("Error: " + error.message);
-    else {
+    if (error) {
+        alert("Error inserting pixels: " + error.message);
+    } else {
+        // --- C'EST ICI QUE TOUT CHANGE ---
+
+        // CAS A : Tu es l'admin et tu fais un ajout magique (Gratuit)
         if (isAdminBypass) {
             alert("✨ Magic Purchase: Pixels added for FREE!");
-            fetchPixels(); setSelectedBatch([]); setImageFile(null); setNewDescription('');
-            return;
+            fetchPixels(); 
+            setSelectedBatch([]); 
+            setImageFile(null); 
+            setNewDescription('');
+            return; // On s'arrête là, pas de Stripe
         }
         
+        // CAS B : C'est un client normal -> On appelle ta nouvelle fonction Supabase
         const count = selectedBatch.length;
-        let finalLink = LINK_TIER_1;
-        if (count >= 10) finalLink = LINK_TIER_4; 
-        else if (count >= 5) finalLink = LINK_TIER_3; 
         
-        window.location.href = finalLink; 
+        try {
+            console.log(`Lancement paiement pour ${count} pixels via Supabase Function...`);
+            
+            // Appel à ta fonction 'create-checkout' (celle qu'on vient de déployer)
+            const { data, error } = await supabase.functions.invoke('create-checkout', {
+                body: { 
+                    count: count, 
+                    user_email: session.user.email,
+                    user_id: session.user.id
+                },
+            });
+
+            if (error) throw error; // Si la fonction plante
+
+            if (data?.url) {
+                // SUCCÈS : Stripe nous a donné l'URL, on redirige le client
+                window.location.href = data.url;
+            } else {
+                alert("Erreur technique : Pas d'URL Stripe reçue.");
+            }
+
+        } catch (err) {
+            console.error("Erreur critique paiement:", err);
+            alert("Impossible de lancer le paiement. Vérifie ta connexion.");
+        }
     }
   };
 
