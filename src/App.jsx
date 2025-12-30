@@ -138,8 +138,23 @@ function App() {
   }, [pixels]);
 
   const fetchPixels = async () => {
-    const { data } = await supabase.from('pixels').select('*');
-    if (data) { setPixels(data); setPixelsSold(data.length); }
+    // Si c'est toi l'admin, tu veux tout voir (pour valider les commandes)
+    // Sinon, on ne montre que ce qui est payé ('paid')
+    let query = supabase.from('pixels').select('*');
+    
+    // Si l'utilisateur n'est PAS l'admin (ou pas connecté), on filtre
+    if (!session || session.user.email !== ADMIN_EMAIL) {
+      query = query.eq('status', 'paid');
+    }
+
+    const { data, error } = await query;
+    
+    if (data) { 
+      setPixels(data); 
+      // Pour le compteur, on ne compte que les payés
+      setPixelsSold(data.filter(p => p.status === 'paid').length); 
+    }
+    if (error) console.error("Erreur chargement:", error);
   };
 
   // --- DESSIN (AVEC DÉCOUPAGE D'IMAGE) ---
@@ -147,6 +162,25 @@ function App() {
     ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
     
     pixels.forEach(p => { 
+      
+      if (p.status === 'pending') {
+          // Si c'est la minimap, on les affiche en rouge pour les repérer vite
+          if (isMini) {
+             ctx.fillStyle = "red";
+             ctx.fillRect(p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+             return;
+          }
+
+          // Sur la grille principale : Hachures ou gris semi-transparent
+          ctx.fillStyle = "rgba(200, 200, 200, 0.8)"; // Gris clair
+          ctx.fillRect(p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+          
+          // Une croix rouge ou bordure pour dire "Pas encore validé"
+          ctx.strokeStyle = "red";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+          return; // IMPORTANT : On arrête là pour ce pixel, on ne dessine pas l'image par dessus
+      }
       const img = p.image_url ? imageCache.current[p.image_url] : null;
 
       if (img) {
@@ -257,11 +291,12 @@ function App() {
       url: newLink,
       description: newDescription,
       image_url: publicImageUrl,
-      // On sauvegarde la position de ce pixel dans le puzzle
+      // Infos pour le découpage d'image
       img_w: groupWidth,
       img_h: groupHeight,
-      img_ox: p.x - minX, // Offset X (0, 1, 2...)
-      img_oy: p.y - minY  // Offset Y
+      img_ox: p.x - minX,
+      img_oy: p.y - minY,
+      status: isAdminBypass ? 'paid' : 'pending' 
     }));
 
     const { error } = await supabase.from('pixels').insert(pixelsToInsert);

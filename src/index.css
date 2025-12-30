@@ -71,10 +71,23 @@ canvas { display: block; image-rendering: pixelated; background: white; }
 }
 
 .info-panel {
-  position: absolute; top: 20px; right: 20px; bottom: 20px;
-  width: 300px; background: white; border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.15); z-index: 10;
-  padding: 20px; display: flex; flex-direction: column;
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  /* J'ai supprimé la ligne 'bottom: 20px' */
+  
+  width: 300px;
+  height: fit-content; /* MAGIQUE : La hauteur s'adapte au contenu */
+  max-height: calc(100vh - 40px); /* Sécurité : Si c'est trop long, ça ne sort pas de l'écran */
+  overflow-y: auto; /* Ajoute un scroll uniquement si nécessaire */
+  
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  z-index: 10;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
 }
 
 .zoom-controls {
