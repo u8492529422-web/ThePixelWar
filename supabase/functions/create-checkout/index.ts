@@ -1,58 +1,71 @@
-// DANS : supabase/functions/create-checkout/index.ts
-
+// supabase/functions/stripe-webhook/index.ts
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import Stripe from 'https://esm.sh/stripe@12.0.0?target=deno'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') as string, {
   apiVersion: '2022-11-15',
 })
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+// Clé secrète spécifique au Webhook (on la configurera après)
+const endpointSecret = Deno.env.get('STRIPE_WEBHOOK_SIGNING_SECRET')
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  const signature = req.headers.get('stripe-signature')
 
   try {
-    const { count, user_email, user_id } = await req.json()
+    if (!signature || !endpointSecret) {
+      throw new Error("Missing signature or secret")
+    }
 
-    // LOGIQUE DE PRIX
-    let unitPrice = 100; // 1.00$
+    // 1. Lire le corps de la requête (ce que Stripe envoie)
+    const body = await req.text()
     
-    if (count >= 10) unitPrice = 70;      // 0.70$ (-30%)
-    else if (count >= 5) unitPrice = 85;  // 0.85$ (-15%)
+    // 2. VÉRIFICATION DE SÉCURITÉ (Crucial !)
+    // On vérifie que c'est bien Stripe qui nous parle et pas un hacker
+    let event
+    try {
+      event = stripe.webhooks.constructEvent(body, signature, endpointSecret)
+    } catch (err) {
+      console.error(`Webhook signature verification failed: ${err.message}`)
+      return new Response(err.message, { status: 400 })
+    }
 
-    // On crée la session Stripe
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              // J'ai changé le nom ici pour le test
-              name: `Selection of ${count} Pixels`, 
-              description: 'The Pixel War blocks',
-            },
-            unit_amount: unitPrice, // Le prix D'UN SEUL pixel (ex: 85 cents)
-          },
-          quantity: count, // C'EST CETTE LIGNE QUI MANQUAIT OU NE MARCHAIT PAS
-        },
-      ],
-      mode: 'payment',
-      success_url: `${req.headers.get('origin')}/?success=true`,
-      cancel_url: `${req.headers.get('origin')}/?canceled=true`,
-      customer_email: user_email,
-      metadata: { user_id, pixel_count: count },
+    // 3. On réagit seulement si le paiement est RÉUSSI
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object
+      const userId = session.metadata.user_id // On récupère l'ID qu'on avait caché
+      
+      console.log(`💰 Paiement reçu pour l'utilisateur: ${userId}`)
+
+      // 4. Connexion ADMIN à Supabase (Service Role)
+      const supabaseAdmin = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
+
+      // 5. VALIDATION DES PIXELS
+      // On prend tous les pixels 'pending' de cet utilisateur et on les passe en 'paid'
+      const { error } = await supabaseAdmin
+        .from('pixels')
+        .update({ status: 'paid' })
+        .eq('owner_id', userId)
+        .eq('status', 'pending')
+
+      if (error) {
+        console.error('Erreur Update DB:', error)
+        return new Response('Error updating database', { status: 500 })
+      }
+      
+      console.log('✅ Pixels validés avec succès !')
+    }
+
+    return new Response(JSON.stringify({ received: true }), {
+      headers: { 'Content-Type': 'application/json' },
     })
 
-    return new Response(JSON.stringify({ url: session.url }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 })
+  } catch (err) {
+    console.error(err)
+    return new Response(err.message, { status: 400 })
   }
 })
