@@ -34,6 +34,7 @@ serve(async (req) => {
     const body = await req.text()
     let event
 
+    
     try {
       // Vérification que le message vient bien de Stripe
       event = stripe.webhooks.constructEvent(body, signature, endpointSecret!)
