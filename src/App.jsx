@@ -551,12 +551,12 @@ function App() {
           />
         </div>
 
-        {/* MODALE SIGN UP */}
         {showSignUp && (
           <div className="modal-overlay" onClick={() => setShowSignUp(false)}>
             <div className="signup-card" onClick={e => e.stopPropagation()}>
               <h2>Create Account</h2>
               <form onSubmit={handleSignUpSubmit}>
+                {/* ... ton formulaire ... */}
                 <input placeholder="Pseudo" required onChange={e => setPseudo(e.target.value)} />
                 <input type="email" placeholder="Email" required onChange={e => setSignEmail(e.target.value)} />
                 <div className="password-wrapper">
@@ -570,7 +570,52 @@ function App() {
             </div>
           </div>
         )}
-        {/* --- FOOTER DISCRET --- */}
+
+        {/* --- 🚨 AJOUTE CE BLOC ICI (C'EST CE QUI MANQUAIT) 🚨 --- */}
+        
+        {/* MODALE TERMS */}
+        {showTerms && (
+        <div className="modal-overlay" onClick={() => setShowTerms(false)}>
+            <div className="legal-card" onClick={e => e.stopPropagation()}>
+            <div className="legal-header">
+                <h2>Terms of Service</h2>
+                <span className="close-icon" onClick={() => setShowTerms(false)}>&times;</span>
+            </div>
+            <div className="legal-content">
+                <h3>1. Ownership</h3>
+                <p>When you buy pixels, you own the right to display an image and link on those coordinates. You do not own the website itself.</p>
+                <h3>2. Content Policy</h3>
+                <p>No hateful, illegal, or explicit content. We reserve the right to remove pixels without refund.</p>
+                <h3>3. Refunds</h3>
+                <p>All sales are final. Digital space cannot be returned.</p>
+            </div>
+            </div>
+        </div>
+        )}
+
+        {/* MODALE PRIVACY */}
+        {showPrivacy && (
+        <div className="modal-overlay" onClick={() => setShowPrivacy(false)}>
+            <div className="legal-card" onClick={e => e.stopPropagation()}>
+            <div className="legal-header">
+                <h2>Privacy Policy</h2>
+                <span className="close-icon" onClick={() => setShowPrivacy(false)}>&times;</span>
+            </div>
+            <div className="legal-content">
+                <h3>1. Data Collection</h3>
+                <p>We only collect your email for login and payment confirmation.</p>
+                <h3>2. Payments</h3>
+                <p>Processed securely by Stripe. We do not store credit card info.</p>
+                <h3>3. Contact</h3>
+                <p>Contact us at thepixelwar.contact@gmail.com for any request.</p>
+            </div>
+            </div>
+        </div>
+        )}
+
+        {/* --- FIN DE L'AJOUT --- */}
+
+        {/* FOOTER DISCRET */}
         <div className="app-footer">
             <button className="footer-link" onClick={() => setShowTerms(true)}>Terms of Service</button>
             <button className="footer-link" onClick={() => setShowPrivacy(true)}>Privacy Policy</button>

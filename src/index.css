@@ -235,50 +235,15 @@ canvas { display: block; image-rendering: pixelated; background: white; }
 .btn-file-label input[type="file"] {
   display: none;
 }
-/* --- LEGAL MODALS (Discret & Pro) --- */
-.legal-card {
-  background: white;
-  width: 100%;
-  max-width: 600px; /* Moins large que le reste */
-  max-height: 85vh; /* Ne dépasse pas l'écran */
-  border-radius: 16px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  animation: fadeIn 0.2s ease-out;
-}
 
-.legal-header {
-  padding: 20px 30px;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
+/* --- CORRECTION & LEGAL MODALS --- */
 
-.legal-header h2 { margin: 0; font-size: 20px; font-weight: 800; }
-.close-icon { cursor: pointer; font-size: 24px; color: #9ca3af; transition: color 0.2s; }
-.close-icon:hover { color: black; }
-
-.legal-content {
-  padding: 30px;
-  overflow-y: auto; /* Scroll à l'intérieur */
-  font-size: 14px;
-  line-height: 1.6;
-  color: #374151;
-  text-align: left;
-}
-
-.legal-content h3 { color: black; margin-top: 20px; margin-bottom: 10px; font-size: 16px; }
-.legal-content p { margin-bottom: 15px; }
-
-/* Petit footer discret en bas de page */
+/* 1. On s'assure que le footer est AU-DESSUS de tout (Canvas, Grille, etc.) */
 .app-footer {
   position: absolute;
   bottom: 10px;
   right: 20px;
-  z-index: 50; /* Au dessus de la grille */
+  z-index: 9999; /* <--- J'ai augmenté ça drastiquement */
   display: flex;
   gap: 15px;
 }
@@ -289,10 +254,58 @@ canvas { display: block; image-rendering: pixelated; background: white; }
   text-decoration: none;
   font-weight: 600;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.9); /* Un peu plus opaque */
   padding: 4px 8px;
   border-radius: 4px;
+  border: 1px solid #e5e7eb; /* Petit bord pour bien le voir */
   transition: all 0.2s;
 }
 
-.footer-link:hover { color: black; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+.footer-link:hover {
+  color: black;
+  background: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+/* 2. On s'assure que le fond noir (Overlay) est bien défini */
+.modal-overlay {
+  position: fixed; /* IMPORTANT : Fixed par rapport à l'écran */
+  top: 0; 
+  left: 0; 
+  right: 0; 
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px); /* Petit effet flou sympa */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000; /* Au-dessus de tout, même du footer */
+}
+
+/* 3. Style de la fenêtre */
+.legal-card {
+  background: white;
+  width: 90%;
+  max-width: 600px;
+  max-height: 85vh;
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Animation d'apparition */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.legal-header { padding: 20px 30px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+.legal-header h2 { margin: 0; font-size: 20px; font-weight: 800; }
+.close-icon { cursor: pointer; font-size: 24px; color: #9ca3af; }
+.close-icon:hover { color: black; }
+.legal-content { padding: 30px; overflow-y: auto; font-size: 14px; line-height: 1.6; color: #374151; text-align: left; }
+.legal-content h3 { color: black; margin-top: 20px; margin-bottom: 10px; font-size: 16px; }
