@@ -14,7 +14,6 @@ const LINK_TIER_4 = "https://buy.stripe.com/test_bJe5kC0Nw1MF6cweZXb7y04";
 
 function App() {
   // --- ÉTATS GLOBAUX ---
-  // Correction: Le hook doit être DANS le composant
   const [isProcessing, setIsProcessing] = useState(false);
   
   // États pour les pages légales
@@ -592,9 +591,14 @@ function App() {
         </div>
       </main>
 
-      {/* --- LOADING SCREEN --- */}
+      {/* --- LOADING SCREEN AVEC BOUTON FERMER --- */}
       {isProcessing && (
         <div className="loading-overlay">
+          {/* BOUTON FERMER ICI */}
+          <div className="loading-close" onClick={() => setIsProcessing(false)} title="Cancel payment">
+            &times;
+          </div>
+          
           <div className="pixel-spinner"></div>
           <div className="loading-text">Securing your blocks...</div>
           <div className="loading-subtext">Redirecting to secure payment</div>
