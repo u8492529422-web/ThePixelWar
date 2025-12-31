@@ -13,6 +13,10 @@ const LINK_TIER_3 = "https://buy.stripe.com/test_cNi28q3ZI62VbwQ197b7y03";
 const LINK_TIER_4 = "https://buy.stripe.com/test_bJe5kC0Nw1MF6cweZXb7y04";
 
 function App() {
+  // États pour les pages légales
+  const [showTerms, setShowTerms] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+
   const canvasRef = useRef(null);
   const minimapRef = useRef(null);
   const viewportRef = useRef(null);
@@ -566,6 +570,12 @@ function App() {
             </div>
           </div>
         )}
+        {/* --- FOOTER DISCRET --- */}
+        <div className="app-footer">
+            <button className="footer-link" onClick={() => setShowTerms(true)}>Terms of Service</button>
+            <button className="footer-link" onClick={() => setShowPrivacy(true)}>Privacy Policy</button>
+            <span className="footer-link" style={{cursor:'default'}}>© 2025 The Pixel War</span>
+        </div>
       </main>
     </div>
   )
