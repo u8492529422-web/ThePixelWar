@@ -6,6 +6,7 @@ const CANVAS_SIZE = 1000;
 const BLOCKS_PER_ROW = 100; 
 const BLOCK_SIZE = CANVAS_SIZE / BLOCKS_PER_ROW; 
 
+
 // LIENS STRIPE (Gardés en backup, mais non utilisés avec le paiement dynamique)
 const LINK_TIER_1 = "https://buy.stripe.com/test_9B614mdAidvn44o6trb7y00";
 const LINK_TIER_2 = "https://buy.stripe.com/test_6oU00i1RAcrj6cweZXb7y02";
@@ -19,6 +20,7 @@ function App() {
   // États pour les pages légales
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
 
   const canvasRef = useRef(null);
   const minimapRef = useRef(null);
@@ -583,6 +585,13 @@ function App() {
         </div>
         )}
 
+        {/* BOUTON ABOUT (En bas à gauche) */}
+        <div className="app-footer-left">
+            <button className="footer-link" onClick={() => setShowAbout(true)}>
+                ❤️  Why this project?
+            </button>
+        </div>
+
         {/* FOOTER DISCRET */}
         <div className="app-footer">
             <button className="footer-link" onClick={() => setShowTerms(true)}>Terms of Service</button>
@@ -602,6 +611,67 @@ function App() {
           <div className="pixel-spinner"></div>
           <div className="loading-text">Securing your blocks...</div>
           <div className="loading-subtext">Redirecting to secure payment</div>
+        </div>
+      )}
+      {/* MODALE ABOUT */}
+      {showAbout && (
+        <div className="modal-overlay" onClick={() => setShowAbout(false)}>
+            <div className="legal-card" onClick={e => e.stopPropagation()}>
+            <div className="legal-header">
+                <h2>The Story Behind The Pixel War</h2>
+                <span className="close-icon" onClick={() => setShowAbout(false)}>&times;</span>
+            </div>
+            <div className="legal-content">
+                <p style={{fontStyle: 'italic', background: '#f3f4f6', padding: '15px', borderRadius: '8px', marginBottom: '20px'}}>
+                  "One million pixels. One real student. One shot at building my future with code."
+                </p>
+
+                <h3>Who am I?</h3>
+                <p>
+                  My name is Romain. I’m 16 years old, a high school student, and a self-taught developer.<br/>
+                  I built this website from scratch — not as a school project, but as a real one.
+                  I love creating things on the internet, understanding how they work, and pushing ideas until they exist for real.
+                </p>
+
+                <h3>Why The Pixel War?</h3>
+                <p>
+                  I was inspired by the original Million Dollar Homepage, but I didn’t want to just copy an idea — I wanted to reinterpret it with my own skills and ambition.<br/>
+                  The Pixel War is both a technical challenge and a personal one: designing, coding, securing, and launching a full platform alone, while studying.
+                </p>
+                <p>
+                  Instead of taking on heavy student debt or working jobs that would slow down my learning, I chose a different path: building something valuable, public, and creative — and letting people decide if it’s worth supporting.
+                </p>
+
+                <h3>Where does the money go?</h3>
+                <p>
+                  Every pixel purchased directly supports my education and my growth as a developer and future engineer.<br/>
+                  It helps fund:
+                </p>
+                <ul style={{paddingLeft: '20px', listStyleType: 'disc', marginBottom: '15px'}}>
+                  <li>Advanced learning resources (programming, tech, entrepreneurship)</li>
+                  <li>Better equipment to build more ambitious projects</li>
+                  <li>Time — real time — to study, experiment, and improve</li>
+                </ul>
+
+                <p>
+                  Think of it this way: buying pixels isn’t just advertising.<br/>
+                  It’s turning a few pixels into hours of learning, building, and progress.
+                </p>
+
+                <h3>Be part of the story</h3>
+                <p>
+                  The Pixel War will stay online as a snapshot of everyone who believed in a young creator choosing work over shortcuts.<br/>
+                  If you take a few pixels, you don’t just place an image — you leave a mark in my journey.
+                </p>
+                <p style={{fontWeight: 'bold', textAlign: 'center', marginTop: '20px', fontSize: '1.1em'}}>
+                  Join the grid. Support a builder. Become part of the story.
+                </p>
+
+                <button className="btn-login" style={{width:'100%', marginTop:20, background:'black'}} onClick={() => setShowAbout(false)}>
+                  Close & Buy a Pixel
+                </button>
+            </div>
+            </div>
         </div>
       )}
     </div>

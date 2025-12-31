@@ -248,6 +248,8 @@ canvas { display: block; image-rendering: pixelated; background: white; }
   gap: 15px;
 }
 
+
+
 .footer-link {
   font-size: 11px;
   color: #9ca3af;
@@ -375,4 +377,13 @@ canvas { display: block; image-rendering: pixelated; background: white; }
 .loading-close:hover {
   opacity: 1;
   transform: scale(1.1);
+}
+/* Le coin en bas à gauche pour le bouton "About" */
+.app-footer-left {
+  position: absolute;
+  bottom: 10px;
+  left: 20px;
+  z-index: 9999;
+  display: flex;
+  gap: 15px;
 }
