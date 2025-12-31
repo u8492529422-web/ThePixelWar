@@ -6,13 +6,17 @@ const CANVAS_SIZE = 1000;
 const BLOCKS_PER_ROW = 100; 
 const BLOCK_SIZE = CANVAS_SIZE / BLOCKS_PER_ROW; 
 
-// LIENS STRIPE
+// LIENS STRIPE (Gardés en backup, mais non utilisés avec le paiement dynamique)
 const LINK_TIER_1 = "https://buy.stripe.com/test_9B614mdAidvn44o6trb7y00";
 const LINK_TIER_2 = "https://buy.stripe.com/test_6oU00i1RAcrj6cweZXb7y02";
 const LINK_TIER_3 = "https://buy.stripe.com/test_cNi28q3ZI62VbwQ197b7y03";
 const LINK_TIER_4 = "https://buy.stripe.com/test_bJe5kC0Nw1MF6cweZXb7y04";
 
 function App() {
+  // --- ÉTATS GLOBAUX ---
+  // Correction: Le hook doit être DANS le composant
+  const [isProcessing, setIsProcessing] = useState(false);
+  
   // États pour les pages légales
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
@@ -21,7 +25,6 @@ function App() {
   const minimapRef = useRef(null);
   const viewportRef = useRef(null);
   
-  // CACHE IMAGES (C'était sûrement ça qui manquait)
   const imageCache = useRef({});
   const [imagesLoaded, setImagesLoaded] = useState(0);
 
@@ -30,7 +33,6 @@ function App() {
   const [pixelsSold, setPixelsSold] = useState(0);
 
   const [zoom, setZoom] = useState(1);
-  const [selectedBlock, setSelectedBlock] = useState(null);
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, w: 100, h: 100 });
   const [isCentered, setIsCentered] = useState(false);
 
@@ -142,71 +144,49 @@ function App() {
   }, [pixels]);
 
   const fetchPixels = async () => {
-    // Si c'est toi l'admin, tu veux tout voir (pour valider les commandes)
-    // Sinon, on ne montre que ce qui est payé ('paid')
     let query = supabase.from('pixels').select('*');
-    
-    // Si l'utilisateur n'est PAS l'admin (ou pas connecté), on filtre
     if (!session || session.user.email !== ADMIN_EMAIL) {
       query = query.eq('status', 'paid');
     }
-
     const { data, error } = await query;
-    
     if (data) { 
       setPixels(data); 
-      // Pour le compteur, on ne compte que les payés
       setPixelsSold(data.filter(p => p.status === 'paid').length); 
     }
     if (error) console.error("Erreur chargement:", error);
   };
 
-  // --- DESSIN (AVEC DÉCOUPAGE D'IMAGE) ---
+  // --- DESSIN ---
   const draw = (ctx, isMini = false) => {
     ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
     
     pixels.forEach(p => { 
-
       if (p.status === 'pending') {
-          // Si c'est la minimap, on les affiche en rouge pour les repérer vite
           if (isMini) {
              ctx.fillStyle = "red";
              ctx.fillRect(p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
              return;
           }
-
-          // Sur la grille principale : Hachures ou gris semi-transparent
-          ctx.fillStyle = "rgba(200, 200, 200, 0.8)"; // Gris clair
+          ctx.fillStyle = "rgba(200, 200, 200, 0.8)"; 
           ctx.fillRect(p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
-          
-          // Une croix rouge ou bordure pour dire "Pas encore validé"
           ctx.strokeStyle = "red";
           ctx.lineWidth = 1;
           ctx.strokeRect(p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
-          return; // IMPORTANT : On arrête là pour ce pixel, on ne dessine pas l'image par dessus
+          return; 
       }
       const img = p.image_url ? imageCache.current[p.image_url] : null;
 
       if (img) {
-        // Logique de découpage (Slicing)
-        // Si ces valeurs n'existent pas (vieux pixels), on met des valeurs par défaut
         const totalW = p.img_w || 1;
         const totalH = p.img_h || 1;
         const offsetX = p.img_ox || 0;
         const offsetY = p.img_oy || 0;
-
-        // Calcul de la portion de l'image source à prendre
         const sourceW = img.width / totalW;
         const sourceH = img.height / totalH;
         const sourceX = offsetX * sourceW;
         const sourceY = offsetY * sourceH;
 
-        // drawImage(img, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
-        ctx.drawImage(
-            img, 
-            sourceX, sourceY, sourceW, sourceH, // Quoi prendre dans l'image source
-            p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE // Où le mettre sur la grille
-        );
+        ctx.drawImage(img, sourceX, sourceY, sourceW, sourceH, p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
       } else {
         ctx.fillStyle = p.color || '#000'; 
         ctx.fillRect(p.x * BLOCK_SIZE, p.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE); 
@@ -257,95 +237,91 @@ function App() {
     }
   };
 
-  // --- ACHAT AVEC CALCUL DE L'IMAGE ÉTENDUE ---
+  // --- FONCTION D'ACHAT AVEC ANIMATION ---
   const handleBuy = async (isAdminBypass = false) => {
     // 1. Vérifications de base
     if (!session) return alert("Please log in first.");
     if (selectedBatch.length === 0) return;
 
-    let publicImageUrl = null;
-    
-    // 2. Upload de l'image (si présente)
-    if (imageFile) {
-        const fileName = `${session.user.id}_${Date.now()}`;
-        const { error } = await supabase.storage.from('pixel-images').upload(fileName, imageFile);
-        if (error) return alert("Image upload failed: " + error.message);
-        const { data } = supabase.storage.from('pixel-images').getPublicUrl(fileName);
-        publicImageUrl = data.publicUrl;
-    }
+    // 🟢 ON DÉMARRE L'ANIMATION
+    setIsProcessing(true);
 
-    // 3. Calcul du "Puzzle" (Image découpée)
-    const xs = selectedBatch.map(p => p.x);
-    const ys = selectedBatch.map(p => p.y);
-    const minX = Math.min(...xs);
-    const minY = Math.min(...ys);
-    const groupWidth = Math.max(...xs) - minX + 1;
-    const groupHeight = Math.max(...ys) - minY + 1;
+    try {
+        let publicImageUrl = null;
+        
+        // 2. Upload de l'image (si présente)
+        if (imageFile) {
+            const fileName = `${session.user.id}_${Date.now()}`;
+            const { error } = await supabase.storage.from('pixel-images').upload(fileName, imageFile);
+            if (error) throw new Error("Image upload failed: " + error.message);
+            const { data } = supabase.storage.from('pixel-images').getPublicUrl(fileName);
+            publicImageUrl = data.publicUrl;
+        }
 
-    // 4. Préparation des données SQL
-    const pixelsToInsert = selectedBatch.map(p => ({
-      x: p.x, 
-      y: p.y, 
-      owner_id: session.user.id, 
-      color: newColor, 
-      url: newLink,
-      description: newDescription,
-      image_url: publicImageUrl,
-      pseudo: session.user.user_metadata?.pseudo || 'Anonymous', 
-      img_w: groupWidth,
-      img_h: groupHeight,
-      img_ox: p.x - minX,
-      img_oy: p.y - minY,
-      // Admin = payé direct / User = en attente de Stripe
-      status: isAdminBypass ? 'paid' : 'pending' 
-    }));
+        // 3. Calcul du "Puzzle"
+        const xs = selectedBatch.map(p => p.x);
+        const ys = selectedBatch.map(p => p.y);
+        const minX = Math.min(...xs);
+        const minY = Math.min(...ys);
+        const groupWidth = Math.max(...xs) - minX + 1;
+        const groupHeight = Math.max(...ys) - minY + 1;
 
-    // 5. Insertion dans la base de données
-    const { error } = await supabase.from('pixels').insert(pixelsToInsert);
-    
-    if (error) {
-        alert("Error inserting pixels: " + error.message);
-    } else {
-        // --- C'EST ICI QUE TOUT CHANGE ---
+        // 4. Préparation des données SQL
+        const pixelsToInsert = selectedBatch.map(p => ({
+          x: p.x, 
+          y: p.y, 
+          owner_id: session.user.id, 
+          color: newColor, 
+          url: newLink,
+          description: newDescription,
+          image_url: publicImageUrl,
+          pseudo: session.user.user_metadata?.pseudo || 'Anonymous', 
+          img_w: groupWidth,
+          img_h: groupHeight,
+          img_ox: p.x - minX,
+          img_oy: p.y - minY,
+          status: isAdminBypass ? 'paid' : 'pending' 
+        }));
 
-        // CAS A : Tu es l'admin et tu fais un ajout magique (Gratuit)
+        // 5. Insertion dans la base
+        const { error } = await supabase.from('pixels').insert(pixelsToInsert);
+        if (error) throw error;
+
+        // CAS A : Admin (Magic Add)
         if (isAdminBypass) {
             alert("✨ Magic Purchase: Pixels added for FREE!");
             fetchPixels(); 
             setSelectedBatch([]); 
             setImageFile(null); 
             setNewDescription('');
-            return; // On s'arrête là, pas de Stripe
+            setIsProcessing(false); // 🔴 ON ARRÊTE L'ANIMATION
+            return;
         }
         
-        // CAS B : C'est un client normal -> On appelle ta nouvelle fonction Supabase
+        // CAS B : Client normal (Stripe)
         const count = selectedBatch.length;
+        console.log(`Lancement paiement pour ${count} pixels...`);
         
-        try {
-            console.log(`Lancement paiement pour ${count} pixels via Supabase Function...`);
-            
-            // Appel à ta fonction 'create-checkout' (celle qu'on vient de déployer)
-            const { data, error } = await supabase.functions.invoke('create-checkout', {
-                body: { 
-                    count: count, 
-                    user_email: session.user.email,
-                    user_id: session.user.id
-                },
-            });
+        const { data, error: fnError } = await supabase.functions.invoke('create-checkout', {
+            body: { 
+                count: count, 
+                user_email: session.user.email,
+                user_id: session.user.id
+            },
+        });
 
-            if (error) throw error; // Si la fonction plante
+        if (fnError) throw fnError;
 
-            if (data?.url) {
-                // SUCCÈS : Stripe nous a donné l'URL, on redirige le client
-                window.location.href = data.url;
-            } else {
-                alert("Erreur technique : Pas d'URL Stripe reçue.");
-            }
-
-        } catch (err) {
-            console.error("Erreur critique paiement:", err);
-            alert("Impossible de lancer le paiement. Vérifie ta connexion.");
+        if (data?.url) {
+            window.location.href = data.url;
+        } else {
+            throw new Error("Pas d'URL Stripe reçue.");
         }
+
+    } catch (err) {
+        console.error("Erreur critique:", err);
+        alert("Oups ! Une erreur est survenue : " + err.message);
+        setIsProcessing(false); // 🔴 ON ARRÊTE L'ANIMATION SI ERREUR
     }
   };
 
@@ -461,9 +437,7 @@ function App() {
                     )}
                  </div>
               ) : (
-                 // ... (Le bloc "else" reste le même, celui avec le formulaire d'achat)
-                 <div style={{flex:1, display:'flex', flexDirection:'column', 
-                 overflowY:'auto'}}>
+                 <div style={{flex:1, display:'flex', flexDirection:'column', overflowY:'auto'}}>
                     <div style={{fontSize:13, fontWeight:600, marginBottom:5}}>SETTINGS</div>
                     
                     <label style={{fontSize:12}}>Color</label>
@@ -478,13 +452,13 @@ function App() {
                         <input type="file" accept="image/*" onChange={e => setImageFile(e.target.files[0])} />
                     </label>
 
-                    <label style={{fontSize:12, marginTop:5}}>Link URL</label>
-                    <input className="nav-input" style={{width:'100%', marginBottom:10}} value={newLink} onChange={e => setNewLink(e.target.value)} />
+                    <label style={{fontSize:12, fontWeight:'bold', color:'#444', marginTop:5}}>Link URL</label>
+                    <input className="nav-input" style={{width:'100%', marginBottom:8, padding:'6px 10px'}} value={newLink} onChange={e => setNewLink(e.target.value)} />
 
-                    <label style={{fontSize:12}}>Description</label>
+                    <label style={{fontSize:12, fontWeight:'bold', color:'#444'}}>Description</label>
                     <textarea 
                         className="nav-input" 
-                        style={{width:'100%', height:60, marginBottom:10, fontFamily:'inherit'}} 
+                        style={{width:'100%', height:50, marginBottom:8, fontFamily:'inherit', padding:'6px 10px'}} 
                         value={newDescription} 
                         onChange={e => setNewDescription(e.target.value)} 
                         placeholder="Say something..."
@@ -556,7 +530,6 @@ function App() {
             <div className="signup-card" onClick={e => e.stopPropagation()}>
               <h2>Create Account</h2>
               <form onSubmit={handleSignUpSubmit}>
-                {/* ... ton formulaire ... */}
                 <input placeholder="Pseudo" required onChange={e => setPseudo(e.target.value)} />
                 <input type="email" placeholder="Email" required onChange={e => setSignEmail(e.target.value)} />
                 <div className="password-wrapper">
@@ -571,8 +544,6 @@ function App() {
           </div>
         )}
 
-        {/* --- 🚨 AJOUTE CE BLOC ICI (C'EST CE QUI MANQUAIT) 🚨 --- */}
-        
         {/* MODALE TERMS */}
         {showTerms && (
         <div className="modal-overlay" onClick={() => setShowTerms(false)}>
@@ -613,8 +584,6 @@ function App() {
         </div>
         )}
 
-        {/* --- FIN DE L'AJOUT --- */}
-
         {/* FOOTER DISCRET */}
         <div className="app-footer">
             <button className="footer-link" onClick={() => setShowTerms(true)}>Terms of Service</button>
@@ -622,6 +591,15 @@ function App() {
             <span className="footer-link" style={{cursor:'default'}}>© 2025 The Pixel War</span>
         </div>
       </main>
+
+      {/* --- LOADING SCREEN --- */}
+      {isProcessing && (
+        <div className="loading-overlay">
+          <div className="pixel-spinner"></div>
+          <div className="loading-text">Securing your blocks...</div>
+          <div className="loading-subtext">Redirecting to secure payment</div>
+        </div>
+      )}
     </div>
   )
 }

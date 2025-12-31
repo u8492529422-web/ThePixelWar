@@ -309,3 +309,53 @@ canvas { display: block; image-rendering: pixelated; background: white; }
 .close-icon:hover { color: black; }
 .legal-content { padding: 30px; overflow-y: auto; font-size: 14px; line-height: 1.6; color: #374151; text-align: left; }
 .legal-content h3 { color: black; margin-top: 20px; margin-bottom: 10px; font-size: 16px; }
+
+/* --- LOADING OVERLAY (Animation d'achat) --- */
+.loading-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.85); /* Fond noir semi-transparent */
+  backdrop-filter: blur(5px); /* Flou d'arrière-plan très classe */
+  z-index: 99999; /* Au-dessus de ABSOLUMENT tout */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Le cube qui tourne */
+.pixel-spinner {
+  width: 50px;
+  height: 50px;
+  background-color: #fff;
+  margin-bottom: 20px;
+  animation: rotateplane 1.2s infinite ease-in-out;
+}
+
+.loading-text {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  animation: pulse 1.5s infinite;
+}
+
+.loading-subtext {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 8px;
+}
+
+@keyframes rotateplane {
+  0% { transform: perspective(120px) rotateX(0deg) rotateY(0deg); }
+  50% { transform: perspective(120px) rotateX(-180.1deg) rotateY(0deg); }
+  100% { transform: perspective(120px) rotateX(-180deg) rotateY(-179.9deg); }
+}
+
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
