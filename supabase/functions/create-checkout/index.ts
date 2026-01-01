@@ -11,7 +11,6 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Gérer le CORS (pour que ton site ait le droit de parler à la fonction)
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -19,19 +18,19 @@ serve(async (req) => {
   try {
     const { count, user_email, user_id } = await req.json()
 
-    // --- LOGIQUE DE PRIX MISE À JOUR ---
-    // Prix en centimes (100 = 1.00$)
-    let unitPrice = 100; // 1.00$ par défaut
-    
-    if (count >= 10) {
-        unitPrice = 80; // 0.80$ (-20%)
-    } else if (count >= 5) {
-        unitPrice = 90; // 0.90$ (-10%)
-    }
+    // --- PRIX MISE À JOUR (Tes prix personnalisés) ---
+    let unitPrice = 100; // 1.00$
+    if (count >= 10) unitPrice = 80;      // 0.80$ (-20%)
+    else if (count >= 5) unitPrice = 90;  // 0.90$ (-10%)
 
-    // Création de la session Stripe
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
+      
+      // ✅ NOUVEAU : ACTIVATION DES TAXES
+      automatic_tax: { enabled: true },
+      // On oblige le client à donner son adresse pour calculer la TVA du pays
+      billing_address_collection: 'required',
+
       line_items: [
         {
           price_data: {
@@ -39,8 +38,12 @@ serve(async (req) => {
             product_data: {
               name: `Pixel Pack (${count} blocks)`,
               description: 'The Pixel War blocks',
+              // ✅ Code fiscal pour produit digital
+              tax_code: 'txcd_10000000', 
             },
-            unit_amount: unitPrice, // Le prix calculé juste au-dessus
+            unit_amount: unitPrice,
+            // 'exclusive' = La taxe s'ajoute EN PLUS du prix (1$ devient 1.20$)
+            tax_behavior: 'exclusive', 
           },
           quantity: count,
         },
