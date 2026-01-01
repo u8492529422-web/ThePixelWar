@@ -89,8 +89,8 @@ function App() {
 
   // --- LOGIQUE PRIX ---
   const getPricePerBlock = (count) => {
-    if (count >= 10) return 0.70;
-    if (count >= 5) return 0.85;
+    if (count >= 10) return 0.80; 
+    if (count >= 5) return 0.90;  
     return 1.00;
   };
 
