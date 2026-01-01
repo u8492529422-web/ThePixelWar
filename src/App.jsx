@@ -6,26 +6,31 @@ const CANVAS_SIZE = 1000;
 const BLOCKS_PER_ROW = 100; 
 const BLOCK_SIZE = CANVAS_SIZE / BLOCKS_PER_ROW; 
 
-
-// LIENS STRIPE (Gardés en backup, mais non utilisés avec le paiement dynamique)
+// LIENS STRIPE (Gardés en backup)
 const LINK_TIER_1 = "https://buy.stripe.com/test_9B614mdAidvn44o6trb7y00";
 const LINK_TIER_2 = "https://buy.stripe.com/test_6oU00i1RAcrj6cweZXb7y02";
 const LINK_TIER_3 = "https://buy.stripe.com/test_cNi28q3ZI62VbwQ197b7y03";
 const LINK_TIER_4 = "https://buy.stripe.com/test_bJe5kC0Nw1MF6cweZXb7y04";
 
 function App() {
-  // --- ÉTATS GLOBAUX ---
+  // --- ÉTATS AJOUTÉS ---
+  // Correction : Ce state doit être DANS la fonction, pas dehors
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // États pour les pages légales
+  // États pour les pages légales & About
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+
+  // États pour le changement de mot de passe
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
 
   const canvasRef = useRef(null);
   const minimapRef = useRef(null);
   const viewportRef = useRef(null);
   
+  // CACHE IMAGES
   const imageCache = useRef({});
   const [imagesLoaded, setImagesLoaded] = useState(0);
 
@@ -146,6 +151,7 @@ function App() {
 
   const fetchPixels = async () => {
     let query = supabase.from('pixels').select('*');
+    // Si l'utilisateur n'est PAS l'admin, on filtre
     if (!session || session.user.email !== ADMIN_EMAIL) {
       query = query.eq('status', 'paid');
     }
@@ -157,7 +163,7 @@ function App() {
     if (error) console.error("Erreur chargement:", error);
   };
 
-  // --- DESSIN ---
+  // --- DESSIN (AVEC DÉCOUPAGE D'IMAGE) ---
   const draw = (ctx, isMini = false) => {
     ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
     
@@ -238,19 +244,15 @@ function App() {
     }
   };
 
-  // --- FONCTION D'ACHAT AVEC ANIMATION ---
+  // --- NOUVELLE FONCTION HANDLE BUY (Animation + Stripe Dynamique) ---
   const handleBuy = async (isAdminBypass = false) => {
-    // 1. Vérifications de base
     if (!session) return alert("Please log in first.");
     if (selectedBatch.length === 0) return;
 
-    // 🟢 ON DÉMARRE L'ANIMATION
-    setIsProcessing(true);
+    setIsProcessing(true); // START ANIMATION
 
     try {
         let publicImageUrl = null;
-        
-        // 2. Upload de l'image (si présente)
         if (imageFile) {
             const fileName = `${session.user.id}_${Date.now()}`;
             const { error } = await supabase.storage.from('pixel-images').upload(fileName, imageFile);
@@ -259,7 +261,6 @@ function App() {
             publicImageUrl = data.publicUrl;
         }
 
-        // 3. Calcul du "Puzzle"
         const xs = selectedBatch.map(p => p.x);
         const ys = selectedBatch.map(p => p.y);
         const minX = Math.min(...xs);
@@ -267,39 +268,23 @@ function App() {
         const groupWidth = Math.max(...xs) - minX + 1;
         const groupHeight = Math.max(...ys) - minY + 1;
 
-        // 4. Préparation des données SQL
         const pixelsToInsert = selectedBatch.map(p => ({
-          x: p.x, 
-          y: p.y, 
-          owner_id: session.user.id, 
-          color: newColor, 
-          url: newLink,
-          description: newDescription,
-          image_url: publicImageUrl,
-          pseudo: session.user.user_metadata?.pseudo || 'Anonymous', 
-          img_w: groupWidth,
-          img_h: groupHeight,
-          img_ox: p.x - minX,
-          img_oy: p.y - minY,
+          x: p.x, y: p.y, owner_id: session.user.id, color: newColor, url: newLink, description: newDescription,
+          image_url: publicImageUrl, pseudo: session.user.user_metadata?.pseudo || 'Anonymous',
+          img_w: groupWidth, img_h: groupHeight, img_ox: p.x - minX, img_oy: p.y - minY,
           status: isAdminBypass ? 'paid' : 'pending' 
         }));
 
-        // 5. Insertion dans la base
         const { error } = await supabase.from('pixels').insert(pixelsToInsert);
         if (error) throw error;
 
-        // CAS A : Admin (Magic Add)
         if (isAdminBypass) {
-            alert("✨ Magic Purchase: Pixels added for FREE!");
-            fetchPixels(); 
-            setSelectedBatch([]); 
-            setImageFile(null); 
-            setNewDescription('');
-            setIsProcessing(false); // 🔴 ON ARRÊTE L'ANIMATION
+            alert("✨ Magic Purchase Done!");
+            fetchPixels(); setSelectedBatch([]); setImageFile(null); setNewDescription('');
+            setIsProcessing(false); // STOP ANIMATION
             return;
         }
         
-        // CAS B : Client normal (Stripe)
         const count = selectedBatch.length;
         console.log(`Lancement paiement pour ${count} pixels...`);
         
@@ -322,11 +307,11 @@ function App() {
     } catch (err) {
         console.error("Erreur critique:", err);
         alert("Oups ! Une erreur est survenue : " + err.message);
-        setIsProcessing(false); // 🔴 ON ARRÊTE L'ANIMATION SI ERREUR
+        setIsProcessing(false); // STOP ANIMATION SI ERREUR
     }
   };
 
-  // Auth
+  // Auth Functions
   const handleLogin = async () => {
     const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPass });
     if (error) alert(error.message);
@@ -336,6 +321,22 @@ function App() {
     if (signPass.length < 6) { setSignError("Min 6 chars"); return; }
     const { error } = await supabase.auth.signUp({ email: signEmail, password: signPass, options: { data: { pseudo } } });
     if (error) setSignError(error.message); else { alert("Account created!"); setShowSignUp(false); }
+  };
+
+  // Change Password Function
+  const handleChangePasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (newPassword.length < 6) return alert("Password must be at least 6 characters");
+    
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    
+    if (error) {
+      alert("Error: " + error.message);
+    } else {
+      alert("Password updated successfully! ✅");
+      setShowChangePassword(false);
+      setNewPassword('');
+    }
   };
 
   return (
@@ -388,7 +389,7 @@ function App() {
               {selectedBatch[0].status === 'occupied' && selectedBatch[0].data ? (
                  <div style={{display:'flex', flexDirection:'column', gap:12}}>
                     
-                    {/* 1. IMAGE (Si le pixel en a une) */}
+                    {/* 1. IMAGE */}
                     {selectedBatch[0].data.image_url && (
                         <div style={{width:'100%', height:150, background:'#f3f4f6', borderRadius:8, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', border:'1px solid #e5e7eb'}}>
                             <img 
@@ -399,7 +400,7 @@ function App() {
                         </div>
                     )}
 
-                    {/* 2. HEADER (Pseudo + Status) */}
+                    {/* 2. HEADER */}
                     <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                         <div style={{fontWeight:800, fontSize:18}}>
                             {selectedBatch[0].data.pseudo || 'Anonymous'}
@@ -414,14 +415,14 @@ function App() {
                         Location: X:{selectedBatch[0].x} | Y:{selectedBatch[0].y}
                     </div>
 
-                    {/* 4. DESCRIPTION (Bulle grise) */}
+                    {/* 4. DESCRIPTION */}
                     {selectedBatch[0].data.description && (
                         <div style={{background:'#f9fafb', border:'1px solid #e5e7eb', padding:12, borderRadius:8, fontSize:13, color:'#374151', fontStyle:'italic', lineHeight:1.4}}>
                             "{selectedBatch[0].data.description}"
                         </div>
                     )}
 
-                    {/* 5. BOUTON LIEN (Visiter le site) */}
+                    {/* 5. BOUTON LIEN */}
                     {selectedBatch[0].data.url && (
                         <a 
                             href={selectedBatch[0].data.url.startsWith('http') ? selectedBatch[0].data.url : `https://${selectedBatch[0].data.url}`} 
@@ -526,6 +527,7 @@ function App() {
           />
         </div>
 
+        {/* MODALE SIGN UP */}
         {showSignUp && (
           <div className="modal-overlay" onClick={() => setShowSignUp(false)}>
             <div className="signup-card" onClick={e => e.stopPropagation()}>
@@ -545,8 +547,28 @@ function App() {
           </div>
         )}
 
-        {/* MODALE TERMS */}
-        {showTerms && (
+        {/* --- LEFT FOOTER (About + Password) --- */}
+        <div className="app-footer-left">
+            <button className="footer-link" onClick={() => setShowAbout(true)}>
+                ❤️ Why this project?
+            </button>
+            {session && (
+              <button className="footer-link" onClick={() => setShowChangePassword(true)}>
+                  🔐 Change Password
+              </button>
+            )}
+        </div>
+
+        {/* --- RIGHT FOOTER (Legal) --- */}
+        <div className="app-footer">
+            <button className="footer-link" onClick={() => setShowTerms(true)}>Terms of Service</button>
+            <button className="footer-link" onClick={() => setShowPrivacy(true)}>Privacy Policy</button>
+            <span className="footer-link" style={{cursor:'default'}}>© 2025 The Pixel War</span>
+        </div>
+      </main>
+
+      {/* --- MODALE TERMS --- */}
+      {showTerms && (
         <div className="modal-overlay" onClick={() => setShowTerms(false)}>
             <div className="legal-card" onClick={e => e.stopPropagation()}>
             <div className="legal-header">
@@ -563,10 +585,10 @@ function App() {
             </div>
             </div>
         </div>
-        )}
+      )}
 
-        {/* MODALE PRIVACY */}
-        {showPrivacy && (
+      {/* --- MODALE PRIVACY --- */}
+      {showPrivacy && (
         <div className="modal-overlay" onClick={() => setShowPrivacy(false)}>
             <div className="legal-card" onClick={e => e.stopPropagation()}>
             <div className="legal-header">
@@ -583,37 +605,9 @@ function App() {
             </div>
             </div>
         </div>
-        )}
-
-        {/* BOUTON ABOUT (En bas à gauche) */}
-        <div className="app-footer-left">
-            <button className="footer-link" onClick={() => setShowAbout(true)}>
-                ❤️  Why this project?
-            </button>
-        </div>
-
-        {/* FOOTER DISCRET */}
-        <div className="app-footer">
-            <button className="footer-link" onClick={() => setShowTerms(true)}>Terms of Service</button>
-            <button className="footer-link" onClick={() => setShowPrivacy(true)}>Privacy Policy</button>
-            <span className="footer-link" style={{cursor:'default'}}>© 2025 The Pixel War</span>
-        </div>
-      </main>
-
-      {/* --- LOADING SCREEN AVEC BOUTON FERMER --- */}
-      {isProcessing && (
-        <div className="loading-overlay">
-          {/* BOUTON FERMER ICI */}
-          <div className="loading-close" onClick={() => setIsProcessing(false)} title="Cancel payment">
-            &times;
-          </div>
-          
-          <div className="pixel-spinner"></div>
-          <div className="loading-text">Securing your blocks...</div>
-          <div className="loading-subtext">Redirecting to secure payment</div>
-        </div>
       )}
-      {/* MODALE ABOUT */}
+
+      {/* --- MODALE ABOUT --- */}
       {showAbout && (
         <div className="modal-overlay" onClick={() => setShowAbout(false)}>
             <div className="legal-card" onClick={e => e.stopPropagation()}>
@@ -672,6 +666,44 @@ function App() {
                 </button>
             </div>
             </div>
+        </div>
+      )}
+
+      {/* --- MODALE CHANGE PASSWORD --- */}
+      {showChangePassword && (
+        <div className="modal-overlay" onClick={() => setShowChangePassword(false)}>
+          <div className="signup-card" onClick={e => e.stopPropagation()}>
+            <h2>Change Password</h2>
+            <p style={{marginBottom: 20, color: '#666', fontSize: 14}}>Enter your new password below.</p>
+            
+            <form onSubmit={handleChangePasswordSubmit}>
+              <div className="password-wrapper">
+                <input 
+                  type="password" 
+                  placeholder="New Password" 
+                  required 
+                  minLength={6}
+                  onChange={e => setNewPassword(e.target.value)} 
+                />
+              </div>
+              
+              <button type="submit" className="btn-signup-confirm">Update Password</button>
+              <button type="button" className="btn-cancel" onClick={() => setShowChangePassword(false)}>Cancel</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- LOADING SCREEN (AVEC CROIX) --- */}
+      {isProcessing && (
+        <div className="loading-overlay">
+          <div className="loading-close" onClick={() => setIsProcessing(false)} title="Cancel payment">
+            &times;
+          </div>
+          
+          <div className="pixel-spinner"></div>
+          <div className="loading-text">Securing your blocks...</div>
+          <div className="loading-subtext">Redirecting to secure payment</div>
         </div>
       )}
     </div>
