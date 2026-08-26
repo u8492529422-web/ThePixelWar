@@ -1,16 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 
-const ADMIN_EMAIL = "romain.silande@gmail.com";
-const CANVAS_SIZE = 1000; 
-const BLOCKS_PER_ROW = 100; 
-const BLOCK_SIZE = CANVAS_SIZE / BLOCKS_PER_ROW; 
+const ADMIN_EMAIL = "thepixelwar.contact@gmail.com";
+const CANVAS_SIZE = 1000;
+const BLOCKS_PER_ROW = 100;
+const BLOCK_SIZE = CANVAS_SIZE / BLOCKS_PER_ROW;
 
-// LIENS STRIPE (Gardés en backup)
-const LINK_TIER_1 = "https://buy.stripe.com/test_9B614mdAidvn44o6trb7y00";
-const LINK_TIER_2 = "https://buy.stripe.com/test_6oU00i1RAcrj6cweZXb7y02";
-const LINK_TIER_3 = "https://buy.stripe.com/test_cNi28q3ZI62VbwQ197b7y03";
-const LINK_TIER_4 = "https://buy.stripe.com/test_bJe5kC0Nw1MF6cweZXb7y04";
+// DEMO MODE — checkout is off.
+//
+// The Stripe webhook that fulfils an order (`supabase/functions/stripe-webhook`)
+// was never implemented: it is still the Supabase starter template. Blocks were
+// inserted as `pending` and nothing ever promoted them to `paid`, so a completed
+// payment delivered nothing. Until the webhook exists, the app must not be able
+// to take money. Flip this to true only once fulfilment actually works.
+const CHECKOUT_ENABLED = false;
 
 function App() {
   // --- ÉTATS AJOUTÉS ---
@@ -248,6 +251,13 @@ function App() {
   const handleBuy = async (isAdminBypass = false) => {
     if (!session) return alert("Please log in first.");
     if (selectedBatch.length === 0) return;
+    // Demo mode: refuse before writing anything. The old flow inserted `pending`
+    // rows and THEN sent the user to Stripe, so an abandoned or unfulfilled
+    // payment left orphan rows behind. Nothing is written unless a purchase can
+    // actually be honoured.
+    if (!CHECKOUT_ENABLED && !isAdminBypass) {
+      return alert("The Pixel War is in demo mode — blocks are not for sale. See the README for why.");
+    }
 
     setIsProcessing(true); // START ANIMATION
 
@@ -475,9 +485,20 @@ function App() {
                         <div className="price-total"><span>TOTAL</span><span>{totalPrice.toFixed(2)}$</span></div>
                     </div>
 
-                    <button className="btn-login" style={{width:'100%', marginTop:15, padding:'15px'}} onClick={() => handleBuy(false)}>
-                        Purchase Now
-                    </button>
+                    {CHECKOUT_ENABLED ? (
+                        <button className="btn-login" style={{width:'100%', marginTop:15, padding:'15px'}} onClick={() => handleBuy(false)}>
+                            Purchase Now
+                        </button>
+                    ) : (
+                        <div style={{marginTop:15, padding:'12px 14px', border:'1px solid #e5e5e5', borderRadius:8, background:'#fafafa'}}>
+                            <div style={{fontWeight:'bold', fontSize:13, marginBottom:4}}>Demo mode — not for sale</div>
+                            <div style={{fontSize:12, color:'#666', lineHeight:1.45}}>
+                                Order fulfilment was never finished, so checkout is switched off rather than
+                                take a payment that delivers nothing. The prices above show what the pricing
+                                tiers would be.
+                            </div>
+                        </div>
+                    )}
 
                     {session?.user?.email === ADMIN_EMAIL && (
                         <button style={{width: '100%', marginTop: 10, padding: '10px', background: 'linear-gradient(45deg, #FFD700, #FFA500)', border: 'none', borderRadius: '8px', color: 'white', fontWeight: 'bold', cursor: 'pointer'}} onClick={() => handleBuy(true)}>
@@ -599,7 +620,7 @@ function App() {
                 <h3>1. Data Collection</h3>
                 <p>We only collect your email for login and payment confirmation.</p>
                 <h3>2. Payments</h3>
-                <p>Processed securely by Stripe. We do not store credit card info.</p>
+                <p>The Pixel War is in demo mode: blocks are not for sale and no payment is taken. No card details are collected or stored.</p>
                 <h3>3. Contact</h3>
                 <p>Contact us at thepixelwar.contact@gmail.com for any request.</p>
             </div>
@@ -662,7 +683,7 @@ function App() {
                 </p>
 
                 <button className="btn-login" style={{width:'100%', marginTop:20, background:'black'}} onClick={() => setShowAbout(false)}>
-                  Close & Buy a Pixel
+                  Close & explore the grid
                 </button>
             </div>
             </div>
